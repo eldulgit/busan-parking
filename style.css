@@ -41,3 +41,42 @@ h2 {
 p {
     line-height: 1.6;
 }
+
+button {
+    padding: 10px 16px;
+    font: inherit;
+    color: white;
+    background-color: #2563eb;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: wait;
+}
+
+#parking-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+    gap: 16px;
+    margin-top: 24px;
+}
+
+.parking-card {
+    padding: 16px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    overflow-wrap: anywhere;
+}
+
+.parking-card h3 {
+    margin: 0 0 12px;
+    font-size: 18px;
+}
+
+.parking-card p {
+    margin: 0;
+    color: #555;
+}

@@ -15,8 +15,9 @@
     <main>
         <section>
             <h2>주차장 목록</h2>
-            <p>이곳에 주차장 정보를 표시할 예정입니다.</p>
-            <div id="parking-list"></div>
+            <p id="status-message" role="status">주차장 목록을 불러오는 중입니다.</p>
+            <button id="reload-button" type="button">다시 조회</button>
+            <div id="parking-list" aria-busy="true"></div>
         </section>
     </main>
 </body>
