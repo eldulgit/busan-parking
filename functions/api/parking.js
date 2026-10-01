@@ -6,7 +6,7 @@ const ENDPOINTS = {
 const clean = value => value == null || ["", "-", "null"].includes(String(value).trim()) ? null : String(value).trim();
 const number = value => clean(value) !== null && Number.isFinite(Number(value)) && Number(value) >= 0 ? Number(value) : null;
 // 구역 번호와 방향은 보존합니다. 비슷한 이름을 추측해서 합치지 않습니다.
-export const nameKey = value => (clean(value) || "").normalize("NFKC").replace(/공영주차장|공영|주차장/g, "").replace(/\s/g, "");
+export const nameKey = value => (clean(value) || "").normalize("NFKC").replace(/^도시철도\s*/, "").replace(/공영주차장|공영|주차장/g, "").replace(/[\s,，·ㆍ()（）]/g, "");
 async function getAll(endpoint, key) {
     const result = [];
     for (let page = 1; page <= 30; page++) {
@@ -58,14 +58,27 @@ export function mergeParking(basic, list, live, liveFailed = false) {
     const counts = new Map();
     for (const r of realtime.values()) { const k = nameKey(r.parknm); counts.set(k, (counts.get(k) || 0) + 1); }
     for (const [code, r] of realtime) {
-        const k = nameKey(r.parknm), matches = byName.get(k) || [];
+        const k = nameKey(r.parknm);
+        const keys = [...new Set([k, nameKey(liveByCode.get(code)?.parknm)].filter(Boolean))];
+        const matches = [...new Set(keys.flatMap(key => byName.get(key) || []))];
         let target = matches.length === 1 && counts.get(k) === 1 ? matches[0] : null;
         if (!target) { target = { id: `live-${code}`, name: clean(r.parknm) || "이름 없음", address: null, capacity: null, hours: {}, aliases: [] }; rows.push(target); }
-        target.aliases.push(clean(r.parknm));
+        // 같은 이름의 여러 항목이 모두 같은 주소를 가리킬 때 주소만 보완합니다.
+        const addresses = [...new Set(matches.map(p => p.address).filter(Boolean))];
+        if (!target.address && matches.length && matches.every(p => p.address) && addresses.length === 1) {
+            target.address = addresses[0];
+            target.roadAddress = matches[0].roadAddress;
+            target.lotAddress = matches[0].lotAddress;
+        }
+        target.aliases.push(clean(r.parknm), clean(liveByCode.get(code)?.parknm));
+        target.realtimeSupported = true;
         target.live = liveInfo(liveByCode.get(code));
         target.liveStatus = liveFailed || !target.live || !target.live.valid ? "unavailable" : "available";
     }
-    return rows.sort((a, b) => a.name.localeCompare(b.name, "ko"));
+    return rows.sort((a, b) => {
+        const priority = p => p.liveStatus === "available" ? 0 : p.id.startsWith("live-") || p.live ? 1 : 2;
+        return priority(a) - priority(b) || a.name.localeCompare(b.name, "ko");
+    });
 }
 export async function onRequestGet(context) {
     const headers = { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" };
@@ -81,5 +94,8 @@ export async function onRequestGet(context) {
     if (results[1].status === "rejected") warnings.push("실시간 제공 주차장 목록 조회에 실패했습니다.");
     if (results[2].status === "rejected") warnings.push("실시간 현황 조회에 실패했습니다. 기본 정보는 확인할 수 있습니다.");
     const parkingList = mergeParking(...values, results[2].status === "rejected");
+    for (const p of parkingList) p.addressStatus = p.address ? "available" : results[0].status === "rejected" ? "source-failed" : p.realtimeSupported ? "unmatched" : "missing";
+    const unmatched = parkingList.filter(p => p.addressStatus === "unmatched").length;
+    if (unmatched) warnings.push(`실시간 주차장 ${unmatched}곳은 기본 목록과 이름이 일치하지 않아 주소를 연결하지 못했습니다.`);
     return send({ parkingList, totalCount: parkingList.length, warnings, fetchedAt: new Date().toISOString() });
 }

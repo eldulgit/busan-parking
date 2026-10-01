@@ -22,7 +22,7 @@ function card(p) {
     const top = element("div", "", "card-top");
     const isLive = p.liveStatus === "available";
     top.append(element("h2", p.name), element("span", isLive ? "실시간 제공" : p.liveStatus === "unavailable" ? "현황 조회 불가" : "실시간 정보 미제공", `badge ${isLive ? "live" : "muted"}`));
-    article.append(top, element("p", text(p.address, "주소 정보 없음"), "address"));
+    article.append(top, element("p", text(p.address, p.addressStatus === "source-failed" ? "주소 조회 실패 · 기본 정보 API 확인 필요" : p.addressStatus === "unmatched" ? "주소 연결 필요 · 기본 목록과 이름 불일치" : "주소 정보 미제공"), "address"));
     if (isLive) {
         article.append(element("p", p.live.available === 0 ? `만차 · 전체 ${p.live.total}면` : `주차 가능 ${p.live.available}면 / 전체 ${p.live.total}면`, `availability ${p.live.available === 0 ? "full" : ""}`));
         article.append(element("p", `주차 중 ${p.live.occupied}대 · 갱신 ${text(p.live.updatedAt)}`, "updated"));
@@ -48,7 +48,10 @@ function card(p) {
 function render() {
     if (loading) return;
     const query = normalize(input.value);
-    filtered = parkingList.filter(p => [p.name, p.address, p.roadAddress, p.lotAddress, ...(p.aliases || [])].some(v => normalize(v).includes(query)));
+    filtered = parkingList.filter(p => [p.name, p.address, p.roadAddress, p.lotAddress, ...(p.aliases || [])].some(v => normalize(v).includes(query))).sort((a, b) => {
+        const rank = p => p.liveStatus === "available" ? 0 : p.realtimeSupported || p.live ? 1 : 2;
+        return rank(a) - rank(b) || a.name.localeCompare(b.name, "ko");
+    });
     listElement.replaceChildren(...filtered.slice(0, shown).map(card));
     statusElement.textContent = `전체 ${parkingList.length}곳 · 검색 결과 ${filtered.length}곳 · ${Math.min(shown, filtered.length)}곳 표시`;
     if (!filtered.length) listElement.append(element("p", "검색 결과가 없습니다. 다른 이름이나 주소로 검색해 주세요.", "empty"));
