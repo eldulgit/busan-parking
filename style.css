@@ -1,0 +1,43 @@
+/* 기본 화면 스타일 */
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    color: #222;
+    background-color: #f5f7fa;
+}
+
+header {
+    padding: 24px;
+    color: white;
+    background-color: #2563eb;
+}
+
+h1 {
+    margin: 0;
+    font-size: 24px;
+}
+
+main {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 24px;
+}
+
+section {
+    padding: 24px;
+    background-color: white;
+    border-radius: 8px;
+}
+
+h2 {
+    margin-top: 0;
+    font-size: 20px;
+}
+
+p {
+    line-height: 1.6;
+}
