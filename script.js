@@ -21,7 +21,9 @@ function addDetail(parent, label, value) {
     parent.append(element("dt", label), element("dd", String(value)));
 }
 function kakaoSearchUrl(name) {
-    return "https://map.kakao.com/link/search/" + encodeURIComponent(`부산 ${name}`);
+    const placeName = String(name || "").normalize("NFKC").trim().replace(/^도시철도\s*/, "");
+    const parkingName = placeName.includes("주차장") ? placeName : `${placeName} 공영주차장`;
+    return "https://map.kakao.com/link/search/" + encodeURIComponent(`부산 ${parkingName}`);
 }
 function card(p) {
     const article = element("article", "", "parking-card");
