@@ -38,6 +38,24 @@ function singleAddressField(matches, field, selectedAddress) {
     if (!full.length && !districtOnly(selectedAddress)) return null;
     return (full.length ? full : values)[0];
 }
+// URL·인증키·제공기관 원문 오류는 반환하거나 기록하지 않습니다.
+function sourceError(reason, details = {}) {
+    const error = new Error(reason);
+    error.sourceFailure = { reason, ...details };
+    return error;
+}
+function safeFailure(error) {
+    return error?.sourceFailure || { reason: "request-failed" };
+}
+function failureMessage(failure) {
+    if (failure.reason === "timeout") return "제공기관의 응답이 지연되어 조회하지 못했습니다. 잠시 후 다시 시도해 주세요.";
+    if (failure.reason === "network") return "제공기관에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.";
+    if (failure.reason === "http") return "제공기관 서버가 요청을 정상 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.";
+    if (["invalid-json", "invalid-body"].includes(failure.reason)) return "제공기관의 응답 형식을 확인할 수 없습니다.";
+    if (failure.reason === "api-error") return "공공데이터 API가 오류를 반환했습니다. 제공기관의 오류 코드 확인이 필요합니다.";
+    if (["incomplete-list", "page-limit"].includes(failure.reason)) return "주차장 전체 목록을 끝까지 조회하지 못했습니다.";
+    return "주차정보 요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.";
+}
 async function getAll(endpoint, key) {
     const result = [];
     for (let page = 1; page <= 30; page++) {
@@ -46,23 +64,37 @@ async function getAll(endpoint, key) {
         url.searchParams.set("resultType", "json");
         url.searchParams.set("numOfRows", "100");
         url.searchParams.set("pageNo", String(page));
-        const response = await fetch(url, { signal: AbortSignal.timeout(12000) });
-        if (!response.ok) throw new Error("API 요청 실패");
-        const data = await response.json();
-        if (String(data.response?.header?.resultCode) !== "00") throw new Error("API 응답 오류");
+        let response;
+        try {
+            response = await fetch(url, { signal: AbortSignal.timeout(12000) });
+        } catch (error) {
+            throw sourceError(error?.name === "TimeoutError" || error?.name === "AbortError" ? "timeout" : "network");
+        }
+        if (!response.ok) throw sourceError("http", { httpStatus: response.status });
+        let data;
+        try { data = await response.json(); }
+        catch (error) { throw sourceError(error?.name === "TimeoutError" || error?.name === "AbortError" ? "timeout" : "invalid-json"); }
+        const resultCode = String(data?.response?.header?.resultCode ?? "");
+        if (resultCode !== "00") {
+            // 숫자 코드만 허용하며 원문 메시지는 절대 포함하지 않습니다.
+            throw sourceError("api-error", /^\d{1,3}$/.test(resultCode) ? { apiCode: resultCode } : {});
+        }
         const body = data.response.body;
-        const raw = body?.items?.item;
+        if (!body || typeof body !== "object") throw sourceError("invalid-body");
+        const raw = body.items?.item;
         const items = Array.isArray(raw) ? raw : raw ? [raw] : [];
+        if (!items.every(item => item && typeof item === "object" && !Array.isArray(item))) throw sourceError("invalid-body");
         result.push(...items);
-        const total = number(body?.totalCount);
+        const total = number(body.totalCount);
         if (total !== null && result.length >= total) return result;
         if (!items.length) {
-            if (total !== null && result.length < total) throw new Error("목록 일부 누락");
+            if (total !== null && result.length < total) throw sourceError("incomplete-list");
             return result;
         }
     }
-    throw new Error("목록 조회 범위 초과");
+    throw sourceError("page-limit");
 }
+
 function liveInfo(row) {
     if (!row) return null;
     const available = number(row.curravacnt), total = number(row.maxcnt), occupied = number(row.parkingcnt);
@@ -143,17 +175,26 @@ export async function onRequestGet(context) {
     if (!key) return send({ message: "인증키가 설정되지 않았습니다. SERVICE_KEY를 확인해 주세요." }, 503);
     try { key = decodeURIComponent(key); } catch { /* 원래 키 사용 */ }
     const results = await Promise.allSettled(Object.values(ENDPOINTS).map(endpoint => getAll(endpoint, key)));
-    if (results.every(r => r.status === "rejected")) return send({ message: "주차장 정보를 불러오지 못했습니다. 인증키와 API 활용 승인 상태를 확인해 주세요." }, 502);
+    const sourceStatus = Object.fromEntries(Object.keys(ENDPOINTS).map((name, i) => [name,
+        results[i].status === "fulfilled"
+            ? { status: "ok", count: results[i].value.length }
+            : { status: "failed", ...safeFailure(results[i].reason) }
+    ]));
+    if (results.every(r => r.status === "rejected")) {
+        const failures = results.map(r => safeFailure(r.reason));
+        const explanations = [...new Set(failures.map(failureMessage))];
+        return send({ message: `주차장 정보를 불러오지 못했습니다. ${explanations.join(" ")}`, sourceStatus }, 502);
+    }
     const values = results.map(r => r.status === "fulfilled" ? r.value : []);
     const warnings = [];
-    if (results[0].status === "rejected") warnings.push("전체 기본 목록 조회에 실패했습니다. 현재 일부 주차장만 표시합니다.");
-    if (results[1].status === "rejected") warnings.push("실시간 제공 주차장 목록 조회에 실패했습니다.");
-    if (results[2].status === "rejected") warnings.push("실시간 현황 조회에 실패했습니다. 기본 정보는 확인할 수 있습니다.");
+    if (results[0].status === "rejected") warnings.push(`전체 기본 목록 조회에 실패했습니다. 현재 일부 주차장만 표시합니다. ${failureMessage(safeFailure(results[0].reason))}`);
+    if (results[1].status === "rejected") warnings.push(`실시간 제공 주차장 목록 조회에 실패했습니다. ${failureMessage(safeFailure(results[1].reason))}`);
+    if (results[2].status === "rejected") warnings.push(`실시간 현황 조회에 실패했습니다. 기본 정보는 확인할 수 있습니다. ${failureMessage(safeFailure(results[2].reason))}`);
     const parkingList = mergeParking(...values, results[2].status === "rejected");
     for (const p of parkingList) p.addressStatus = p.address ? "available" : results[0].status === "rejected" ? "source-failed" : p.realtimeSupported && p.detailsStatus === "unmatched" ? "unmatched" : "missing";
     const unmatched = parkingList.filter(p => p.addressStatus === "unmatched").length;
     if (unmatched) warnings.push(`실시간 주차장 ${unmatched}곳은 기본 정보 연결을 확인하지 못했습니다. 이름·구역 차이 또는 중복 주소 확인이 필요합니다.`);
     const sourceMissing = parkingList.filter(p => p.realtimeSupported && p.addressStatus === "missing").length;
     if (sourceMissing) warnings.push(`실시간 주차장 ${sourceMissing}곳은 기본 정보가 연결됐지만 공공데이터에 주소가 없습니다.`);
-    return send({ parkingList, totalCount: parkingList.length, warnings, fetchedAt: new Date().toISOString() });
+    return send({ parkingList, totalCount: parkingList.length, warnings, sourceStatus, fetchedAt: new Date().toISOString() });
 }
