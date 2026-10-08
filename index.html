@@ -1,4 +1,27 @@
 <!doctype html>
-<html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>부산 공영주차장</title><link rel="stylesheet" href="style.css"><script src="script.js" defer></script></head>
-<body><header><div><h1>부산 공영주차장</h1><p>주차장 정보와 실시간 주차 현황을 한곳에서 확인하세요.</p></div></header>
-<main><section class="search-panel" aria-label="주차장 검색"><label for="search-input">어디에 주차하시나요?</label><form id="search-form"><input id="search-input" type="search" placeholder="주차장 이름 또는 주소를 입력하세요" autocomplete="off"><button type="submit">검색</button><button type="button" id="reset-button" class="secondary">전체 보기</button></form><button id="reload-button" type="button" class="secondary">정보 새로고침</button><p id="status-message" role="status" aria-live="polite"></p><p id="warning-message" class="warning" role="status"></p><small>실시간 현황은 제공기관의 갱신 시각 기준이며 실제 현장과 다를 수 있습니다.</small></section><section id="parking-list" class="parking-list" aria-label="검색 결과" aria-busy="true"></section><button id="more-button" type="button" hidden>더 보기</button></main></body></html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#173e45">
+  <title>부산 공영주차장</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
+</head>
+<body>
+  <header class="site-header"><div class="header-inner"><a class="brand" href="./"><span class="brand-icon" aria-hidden="true">P</span><span>부산 공영주차장</span></a><span class="header-caption">주차부터 위치 확인까지</span></div></header>
+  <main>
+    <section class="intro"><p class="eyebrow">BUSAN PARKING</p><h1>주차할 곳, 편하게 찾아보세요.</h1><p>부산의 공영주차장을 검색하고 주차 현황과 위치를 확인하세요.</p></section>
+    <section class="search-panel" aria-label="주차장 검색">
+      <label for="search-input">주차장 검색</label>
+      <form id="search-form"><input id="search-input" type="search" placeholder="주차장 이름 또는 주소를 입력하세요" autocomplete="off"><button type="submit">검색</button><button type="button" id="reset-button" class="secondary">전체 보기</button></form>
+      <div class="search-bottom"><span class="search-tip">실시간 현황을 제공하는 주차장을 먼저 보여드려요.</span><button id="reload-button" type="button" class="secondary refresh">정보 새로고침</button></div>
+      <p id="warning-message" class="warning" role="status"></p>
+    </section>
+    <div class="results-heading"><h2>주차장 목록</h2><p id="status-message" role="status" aria-live="polite"></p></div>
+    <section id="parking-list" class="parking-list" aria-label="검색 결과" aria-busy="true"></section>
+    <button id="more-button" type="button" hidden>주차장 더 보기</button>
+    <footer class="page-footer">주차 현황은 제공기관의 갱신 시각 기준이며 실제 현장과 다를 수 있습니다.</footer>
+  </main>
+</body>
+</html>

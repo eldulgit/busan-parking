@@ -20,12 +20,19 @@ function addDetail(parent, label, value) {
     if (value == null || value === "" || value === "-" || String(value).includes("정보 없음")) return;
     parent.append(element("dt", label), element("dd", String(value)));
 }
+function kakaoSearchUrl(name) {
+    return "https://map.kakao.com/link/search/" + encodeURIComponent(`부산 ${name}`);
+}
 function card(p) {
     const article = element("article", "", "parking-card");
     const top = element("div", "", "card-top");
     const isLive = p.liveStatus === "available";
     top.append(element("h2", p.name), element("span", isLive ? "실시간 제공" : p.liveStatus === "unavailable" ? "현황 조회 불가" : "실시간 정보 미제공", `badge ${isLive ? "live" : "muted"}`));
-    article.append(top, element("p", text(p.address, p.addressStatus === "source-failed" ? "주소 조회 실패 · 기본 정보 API 확인 필요" : p.addressStatus === "unmatched" ? "주소 연결 필요 · 기본 목록과 이름 불일치" : "주소 정보 미제공"), "address"));
+    article.append(top);
+    const addressBox = element("div", "", "address-box");
+    addressBox.append(element("span", "주소(공공데이터 기준)", "field-label"));
+    addressBox.append(element("p", text(p.address, "주소가 제공되지 않았습니다. 지도에서 위치를 확인하세요."), "address"));
+    article.append(addressBox);
     if (isLive) {
         article.append(element("p", p.live.available === 0 ? `만차 · 전체 ${p.live.total}면` : `주차 가능 ${p.live.available}면 / 전체 ${p.live.total}면`, `availability ${p.live.available === 0 ? "full" : ""}`));
         article.append(element("p", `주차 중 ${p.live.occupied}대 · 갱신 ${text(p.live.updatedAt)}`, "updated"));
@@ -46,7 +53,7 @@ function card(p) {
     addDetail(dl, "일 주차요금", p.dayFee > 0 ? money(p.dayFee) : "정보 없음 / 적용 여부 확인 필요");
     addDetail(dl, "월 주차요금", p.monthFee > 0 ? money(p.monthFee) : "정보 없음 / 적용 여부 확인 필요");
     addDetail(dl, "평일", hours(p.hours?.weekday)); addDetail(dl, "토요일", hours(p.hours?.saturday)); addDetail(dl, "공휴일", hours(p.hours?.holiday));
-    addDetail(dl, "요금 안내", p.feeNote); addDetail(dl, "결제 방법", p.payment); addDetail(dl, "특이사항", p.note);
+
     if (dl.children.length) {
         details.append(dl);
         if (p.detailsStatus === "unmatched") details.append(element("p", "요금·운영시간 등 기본 정보를 확인하지 못했습니다.", "updated"));
@@ -59,7 +66,19 @@ function card(p) {
                 : "제공기관에서 이 주차장의 상세정보를 제공하지 않았습니다.";
         details.append(element("p", message, "updated"));
     }
-    article.append(details); return article;
+    article.append(details);
+    const footer = element("div", "", "card-footer");
+    footer.append(element("p", "주소는 공공데이터 기준이며 실제 위치와 다를 수 있습니다. 지도에서 위치를 확인하세요.", "address-note"));
+    if (p.name && p.name !== "이름 없음") {
+        const mapLink = element("a", "카카오맵에서 위치 확인 ↗", "map-link");
+        mapLink.href = kakaoSearchUrl(p.name);
+        mapLink.target = "_blank";
+        mapLink.rel = "noopener noreferrer";
+        mapLink.setAttribute("aria-label", `${p.name} 카카오맵에서 위치 확인 (새 창)`);
+        footer.append(mapLink);
+    }
+    article.append(footer);
+    return article;
 }
 function render() {
     if (loading) return;
