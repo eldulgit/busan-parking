@@ -1,6 +1,6 @@
 // 정적 파일을 변경할 때마다 버전을 올립니다. API 응답은 저장하지 않습니다.
 const CACHE_PREFIX = "busan-parking-static-";
-const CACHE_NAME = `${CACHE_PREFIX}v5-1`;
+const CACHE_NAME = `${CACHE_PREFIX}v5-2`;
 const STATIC_FILES = [
     "/", "/index.html", "/style.css", "/script.js", "/pwa.js",
     "/manifest.webmanifest", "/icon-192.png", "/icon-512.png"

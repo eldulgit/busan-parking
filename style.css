@@ -8,3 +8,66 @@
 .install-panel button{flex-shrink:0}
 #connection-message:not(:empty){margin:0 0 20px}
 @media(max-width:680px){.install-panel{align-items:flex-start;flex-direction:column;padding:16px}.install-panel button{width:100%}}
+
+/* 부드러운 민트와 크림색으로 정리한 주차장 화면 */
+:root{--ink:#294846;--muted:#718581;--teal:#28766a;--line:#e0ece5;--surface:#fffefb;--bg:#f4f9f2}
+body{background:radial-gradient(ellipse at 8% 0%,#e4f4e9 0,transparent 48%),radial-gradient(ellipse at 100% 25%,#fff3d5 0,transparent 40%),var(--bg)}
+.site-header{background:#fffefbeF;border-bottom:1px solid #e1ece3}
+.header-inner{padding-top:17px;padding-bottom:17px}
+.brand{gap:12px;letter-spacing:-.6px}
+.brand-icon{width:42px;height:42px;border-radius:15px;background:#d9eee4;color:var(--teal);border:2px solid #fff;box-shadow:0 3px 0 #bddacb;transform:rotate(-5deg);font-weight:800}
+.header-caption{padding:5px 12px;border-radius:30px;background:#f2f7eb;color:#6d8268;font-size:12px}
+main{padding-top:40px}
+.intro{position:relative;padding:3px 90px 3px 0;margin-bottom:29px}
+.intro::after{content:'P';position:absolute;right:8px;top:4px;width:64px;height:64px;display:grid;place-items:center;color:#4e8f7c;background:#e2f0dd;border:5px solid #fffefb;border-radius:23px;box-shadow:0 5px 0 #cee1c8;transform:rotate(9deg);font-size:38px;font-weight:800;pointer-events:none}
+.eyebrow{display:inline-block;letter-spacing:1.6px;background:#e4f2e6;color:#478064;padding:5px 11px;border-radius:20px;font-size:10px;margin-bottom:13px}
+h1{font-size:clamp(25px,3vw,34px);letter-spacing:-1.2px;color:#2e534b}
+.intro>p:last-child{line-height:1.8}
+.search-panel{border:1px solid #dce9df;border-radius:24px;padding:25px 28px;box-shadow:0 8px 24px #43665008,0 3px 0 #e4ede1}
+input{background:#f7faf4;border-color:#dbe7d9;border-radius:14px;padding:14px 17px}
+button{border-radius:14px;padding:12px 22px;background:var(--teal);box-shadow:0 3px 0 #1b5c5320;transition:background .15s,box-shadow .15s}
+button:hover{background:#216458;box-shadow:0 4px 9px #28766a1c}
+.secondary{border-color:#e0e8dc;background:#f8faf3;color:#557365;box-shadow:none}
+.secondary:hover{background:#edf5e8}
+.refresh{padding:7px 12px;border-radius:12px}
+.install-panel{background:#fffbee;border-color:#eee6c9;border-radius:20px;padding:16px 20px;box-shadow:0 3px 0 #f0ecd9}
+.install-panel p{color:#776f51}
+.install-panel button{font-size:13px}
+.results-heading{margin:31px 0 18px}
+.results-heading>h2{display:flex;align-items:center;gap:9px;color:#355b50;font-size:18px}
+.results-heading>h2::before{content:'';width:10px;height:10px;background:#8abfa0;box-shadow:0 0 0 4px #e6f1df;border-radius:50%}
+.parking-list{gap:23px}
+.parking-card{position:relative;background:#fffefb;border:1px solid #e0e9dc;border-radius:25px;padding:25px;box-shadow:0 7px 22px #496c4b08,0 4px 0 #e7eee1}
+.card-top{margin-bottom:18px;gap:12px}
+.card-top h2{color:#355b50;font-size:19px}
+.badge{border-radius:12px;font-size:10px;padding:5px 9px;white-space:normal;text-align:center;max-width:120px}
+.live{background:#e5f4e8;color:#327246;border:1px solid #d9ebdd}
+.live::before{content:'';display:inline-block;width:5px;height:5px;margin:0 5px 2px 0;border-radius:50%;background:#5f9e6b}
+.muted{background:#f1f2ea;color:#7a8270;border:1px solid #e8eade}
+.field-label{color:#82947d;font-size:11px;letter-spacing:-.1px}
+.address{color:#617565;line-height:1.75}
+.availability{border-radius:17px;background:#edf7e9;border-color:#e0eed9;color:#397346;padding:17px;margin-bottom:8px;font-size:22px;line-height:1.45}
+.full{background:#fff0e9;border-color:#f4e1d7;color:#a66c53}
+.capacity{color:#627a5d}
+.updated{color:#7b8b75;font-size:12px;line-height:1.7}
+details{border-color:#e9eee2;padding-top:15px}
+summary{color:#567655;font-size:13px}
+dl{background:#f5f8ee;border:1px solid #ebefdf;border-radius:15px;padding:16px;gap:10px 12px}
+dt{color:#7e8a73}dd{color:#4f6656}
+.card-footer{border-color:#e9eee2;padding-top:15px}
+.address-note{color:#819079;font-size:11px}
+.map-link{border-radius:14px;background:#ffdf70;color:#68511b;min-height:45px;box-shadow:0 3px 0 #e9ce6a;font-size:13px}
+.map-link:hover{background:#ffda5d}
+.warning{background:#fff4dd;color:#8b6a35;border:1px solid #f0e4c6;border-radius:13px}
+#more-button{border-radius:17px;border-color:#dae6d4;background:#fffefb;box-shadow:0 3px 0 #e5eddf;padding:12px 32px}
+#more-button:hover{background:#f0f7e9}
+.empty{border-radius:22px;background:#fffefb;border-color:#dfe8d8;color:#7b8e73}
+.page-footer{color:#879680;line-height:1.8;margin-top:38px}
+@media(max-width:680px){
+ .header-inner{padding:15px 18px}.brand-icon{width:36px;height:36px;border-radius:13px}.brand{font-size:17px}
+ main{padding:27px 16px}.intro{padding-right:59px}.intro::after{right:1px;top:9px;width:44px;height:44px;font-size:26px;border-width:3px;border-radius:16px}
+ .intro>p:last-child{font-size:13px}.search-panel{padding:20px;border-radius:21px}.parking-list{gap:20px}
+ .parking-card{padding:22px;border-radius:23px}.card-top h2{font-size:18px}.badge{max-width:none;font-size:10px}
+ .availability{font-size:20px;padding:15px}.search-tip{font-size:11px}.refresh{padding:7px 10px;font-size:11px}
+ dl{padding:13px;grid-template-columns:85px 1fr}.install-panel{padding:16px;border-radius:18px}
+}
