@@ -7,6 +7,37 @@ const clean = value => value == null || ["", "-", "null"].includes(String(value)
 const number = value => clean(value) !== null && Number.isFinite(Number(value)) && Number(value) >= 0 ? Number(value) : null;
 // 구역 번호와 방향은 보존합니다. 비슷한 이름을 추측해서 합치지 않습니다.
 export const nameKey = value => (clean(value) || "").normalize("NFKC").replace(/^도시철도\s*/, "").replace(/공영주차장|공영|주차장/g, "").replace(/[\s,，·ㆍ()（）]/g, "");
+// 운영 목록에서 확인한 표기 차이만 지정합니다. 코드·원래 이름이 모두 맞아야 적용합니다.
+// mgntNum은 구별로 중복될 수 있으므로 그 값만으로 기본 항목을 선택하지 않습니다.
+const VERIFIED_NAME_ALIASES = {
+    A48: { source: "대연고가밑", basic: "대연고가도로 밑" },
+    A37: { source: "롯데 광복점 뒤(2)", basic: "롯데광복점 뒤 2번" }
+};
+const addressKey = value => (clean(value) || "").normalize("NFKC")
+    .replace(/^(?:부산광역시|부산시)\s*|^부산\s+/, "").replace(/\s+/g, " ").trim();
+const districtOnly = value => /^(?:중구|서구|동구|영도구|부산진구|동래구|남구|북구|해운대구|사하구|금정구|강서구|연제구|수영구|사상구|기장군)$/.test(addressKey(value));
+// 이름이 같은 중복 항목에서 구 이름만 있는 값은 같은 구의 유일한 상세 주소와 충돌하지 않습니다.
+// 서로 다른 상세 주소가 둘 이상이면 연결하지 않습니다. 원본 주소 문자열은 그대로 사용합니다.
+export function compatibleAddress(matches) {
+    if (!matches.length || !matches.every(p => p.address)) return null;
+    const full = matches.map(p => p.address).filter(a => !districtOnly(a));
+    const candidates = full.length ? full : matches.map(p => p.address);
+    const unique = [...new Set(candidates.map(addressKey))];
+    if (unique.length !== 1) return null;
+    const key = unique[0];
+    if (!matches.every(p => addressKey(p.address) === key
+        || (districtOnly(p.address) && key.startsWith(`${addressKey(p.address)} `)))) return null;
+    return candidates[0];
+}
+function singleAddressField(matches, field, selectedAddress) {
+    const values = matches.map(p => p[field]).filter(Boolean);
+    const full = values.filter(v => !districtOnly(v));
+    const unique = [...new Set((full.length ? full : values).map(addressKey))];
+    if (unique.length !== 1) return null;
+    // 도로명 필드에 구 이름만 있으면 상세 지번 주소와 섞어서 표시하지 않습니다.
+    if (!full.length && !districtOnly(selectedAddress)) return null;
+    return (full.length ? full : values)[0];
+}
 async function getAll(endpoint, key) {
     const result = [];
     for (let page = 1; page <= 30; page++) {
@@ -59,16 +90,21 @@ export function mergeParking(basic, list, live, liveFailed = false) {
     for (const r of realtime.values()) { const k = nameKey(r.parknm); counts.set(k, (counts.get(k) || 0) + 1); }
     for (const [code, r] of realtime) {
         const k = nameKey(r.parknm);
-        const keys = [...new Set([k, nameKey(liveByCode.get(code)?.parknm)].filter(Boolean))];
+        const alias = VERIFIED_NAME_ALIASES[code];
+        const aliasKey = alias && k === nameKey(alias.source) ? nameKey(alias.basic) : null;
+        const keys = [...new Set([k, nameKey(liveByCode.get(code)?.parknm), aliasKey].filter(Boolean))];
         const matches = [...new Set(keys.flatMap(key => byName.get(key) || []))];
         let target = matches.length === 1 && counts.get(k) === 1 ? matches[0] : null;
         if (!target) { target = { id: `live-${code}`, name: clean(r.parknm) || "이름 없음", address: null, capacity: null, hours: {}, aliases: [] }; rows.push(target); }
         // 이름이 중복되더라도 주소가 모두 같으면 일치하는 상세 항목을 보완합니다.
         // 서로 다른 값이 있는 항목은 임의로 하나를 선택하지 않습니다.
-        const addresses = [...new Set(matches.map(p => p.address).filter(Boolean))];
+        const sharedAddress = compatibleAddress(matches);
         target.detailsStatus = target === matches[0] && matches.length === 1 ? "linked" : "unmatched";
-        if (target.detailsStatus === "unmatched" && matches.length && matches.every(p => p.address) && addresses.length === 1) {
-            const fields = ["address", "roadAddress", "lotAddress", "capacity", "type", "operator", "phone",
+        if (target.detailsStatus === "unmatched" && sharedAddress) {
+            target.address = sharedAddress;
+            target.roadAddress = singleAddressField(matches, "roadAddress", sharedAddress);
+            target.lotAddress = singleAddressField(matches, "lotAddress", sharedAddress);
+            const fields = ["capacity", "type", "operator", "phone",
                 "basicMinutes", "basicFee", "additionalMinutes", "additionalFee", "dayFee", "monthFee",
                 "feeNote", "payment", "note"];
             for (const field of fields) {
@@ -90,6 +126,7 @@ export function mergeParking(basic, list, live, liveFailed = false) {
             target.detailsStatus = "shared-address";
         }
         target.aliases.push(clean(r.parknm), clean(liveByCode.get(code)?.parknm));
+        if (aliasKey) target.aliases.push(...matches.map(p => p.name));
         target.realtimeSupported = true;
         target.live = liveInfo(liveByCode.get(code));
         target.liveStatus = liveFailed || !target.live || !target.live.valid ? "unavailable" : "available";
@@ -113,8 +150,10 @@ export async function onRequestGet(context) {
     if (results[1].status === "rejected") warnings.push("실시간 제공 주차장 목록 조회에 실패했습니다.");
     if (results[2].status === "rejected") warnings.push("실시간 현황 조회에 실패했습니다. 기본 정보는 확인할 수 있습니다.");
     const parkingList = mergeParking(...values, results[2].status === "rejected");
-    for (const p of parkingList) p.addressStatus = p.address ? "available" : results[0].status === "rejected" ? "source-failed" : p.realtimeSupported ? "unmatched" : "missing";
+    for (const p of parkingList) p.addressStatus = p.address ? "available" : results[0].status === "rejected" ? "source-failed" : p.realtimeSupported && p.detailsStatus === "unmatched" ? "unmatched" : "missing";
     const unmatched = parkingList.filter(p => p.addressStatus === "unmatched").length;
-    if (unmatched) warnings.push(`실시간 주차장 ${unmatched}곳은 기본 목록과 이름이 일치하지 않아 주소를 연결하지 못했습니다.`);
+    if (unmatched) warnings.push(`실시간 주차장 ${unmatched}곳은 기본 정보 연결을 확인하지 못했습니다. 이름·구역 차이 또는 중복 주소 확인이 필요합니다.`);
+    const sourceMissing = parkingList.filter(p => p.realtimeSupported && p.addressStatus === "missing").length;
+    if (sourceMissing) warnings.push(`실시간 주차장 ${sourceMissing}곳은 기본 정보가 연결됐지만 공공데이터에 주소가 없습니다.`);
     return send({ parkingList, totalCount: parkingList.length, warnings, fetchedAt: new Date().toISOString() });
 }
