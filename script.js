@@ -16,7 +16,10 @@ function hours(pair) {
     if (!pair.every(valid)) return "제공 시간 확인 필요";
     return pair[0] === "00:00" && pair[1] === "24:00" ? "24시간" : pair.join(" ~ ");
 }
-function addDetail(parent, label, value) { parent.append(element("dt", label), element("dd", text(value))); }
+function addDetail(parent, label, value) {
+    if (value == null || value === "" || value === "-" || String(value).includes("정보 없음")) return;
+    parent.append(element("dt", label), element("dd", String(value)));
+}
 function card(p) {
     const article = element("article", "", "parking-card");
     const top = element("div", "", "card-top");
@@ -31,7 +34,9 @@ function card(p) {
         article.append(element("p", capacity == null ? "주차면수 정보 없음" : `전체 ${capacity}면`, "capacity"));
         if (p.live?.updatedAt) article.append(element("p", `현황 갱신 ${p.live.updatedAt} · 수치 확인 필요`, "updated"));
     }
-    article.append(element("p", fee(p)), element("p", `평일 운영 ${hours(p.hours?.weekday)}`));
+    if (p.basicMinutes > 0 && p.basicFee != null) article.append(element("p", fee(p)));
+    const weekday = hours(p.hours?.weekday);
+    if (weekday !== "정보 없음") article.append(element("p", `평일 운영 ${weekday}`));
     const details = element("details", ""); details.append(element("summary", "상세 정보"));
     const dl = element("dl", "");
     addDetail(dl, "도로명 주소", p.roadAddress); addDetail(dl, "지번 주소", p.lotAddress);
@@ -42,7 +47,18 @@ function card(p) {
     addDetail(dl, "월 주차요금", p.monthFee > 0 ? money(p.monthFee) : "정보 없음 / 적용 여부 확인 필요");
     addDetail(dl, "평일", hours(p.hours?.weekday)); addDetail(dl, "토요일", hours(p.hours?.saturday)); addDetail(dl, "공휴일", hours(p.hours?.holiday));
     addDetail(dl, "요금 안내", p.feeNote); addDetail(dl, "결제 방법", p.payment); addDetail(dl, "특이사항", p.note);
-    details.append(dl, element("small", "요금과 운영시간은 제공기관 정보입니다. 0원 항목의 무료 이용 여부는 관리기관에 확인해 주세요."));
+    if (dl.children.length) {
+        details.append(dl);
+        if (p.detailsStatus === "unmatched") details.append(element("p", "요금·운영시간 등 기본 정보를 확인하지 못했습니다.", "updated"));
+        if (p.basicFee === 0 || p.additionalFee === 0) details.append(element("small", "0원 항목의 무료 이용 여부는 관리기관에 확인해 주세요."));
+    } else {
+        const message = p.addressStatus === "source-failed"
+            ? "기본 정보 조회에 실패했습니다. 정보 새로고침으로 다시 시도해 주세요."
+            : p.detailsStatus === "unmatched"
+                ? "이 주차장의 주소·요금·운영시간은 아직 확인되지 않았습니다. 실시간 주차 현황만 확인할 수 있습니다."
+                : "제공기관에서 이 주차장의 상세정보를 제공하지 않았습니다.";
+        details.append(element("p", message, "updated"));
+    }
     article.append(details); return article;
 }
 function render() {

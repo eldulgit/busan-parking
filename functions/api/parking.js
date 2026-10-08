@@ -48,7 +48,7 @@ export function mergeParking(basic, list, live, liveFailed = false) {
         basicMinutes: number(r.pkBascTime), basicFee: number(r.tenMin), additionalMinutes: number(r.pkAddTime), additionalFee: number(r.feeAdd),
         dayFee: number(r.ftDay), monthFee: number(r.ftMon), feeNote: clean(r.feeInfo), payment: clean(r.payMtd), note: clean(r.spclNote),
         hours: { weekday: [clean(r.svcSrtTe), clean(r.svcEndTe)], saturday: [clean(r.satSrtTe), clean(r.satEndTe)], holiday: [clean(r.hldSrtTe), clean(r.hldEndTe)] },
-        live: null, liveStatus: liveFailed ? "unavailable" : "unsupported", aliases: []
+        detailsStatus: "basic", live: null, liveStatus: "unsupported", aliases: []
     }));
     const byName = new Map();
     for (const r of rows) { const k = nameKey(r.name); if (k) byName.set(k, [...(byName.get(k) || []), r]); }
@@ -63,12 +63,31 @@ export function mergeParking(basic, list, live, liveFailed = false) {
         const matches = [...new Set(keys.flatMap(key => byName.get(key) || []))];
         let target = matches.length === 1 && counts.get(k) === 1 ? matches[0] : null;
         if (!target) { target = { id: `live-${code}`, name: clean(r.parknm) || "이름 없음", address: null, capacity: null, hours: {}, aliases: [] }; rows.push(target); }
-        // 같은 이름의 여러 항목이 모두 같은 주소를 가리킬 때 주소만 보완합니다.
+        // 이름이 중복되더라도 주소가 모두 같으면 일치하는 상세 항목을 보완합니다.
+        // 서로 다른 값이 있는 항목은 임의로 하나를 선택하지 않습니다.
         const addresses = [...new Set(matches.map(p => p.address).filter(Boolean))];
-        if (!target.address && matches.length && matches.every(p => p.address) && addresses.length === 1) {
-            target.address = addresses[0];
-            target.roadAddress = matches[0].roadAddress;
-            target.lotAddress = matches[0].lotAddress;
+        target.detailsStatus = target === matches[0] && matches.length === 1 ? "linked" : "unmatched";
+        if (target.detailsStatus === "unmatched" && matches.length && matches.every(p => p.address) && addresses.length === 1) {
+            const fields = ["address", "roadAddress", "lotAddress", "capacity", "type", "operator", "phone",
+                "basicMinutes", "basicFee", "additionalMinutes", "additionalFee", "dayFee", "monthFee",
+                "feeNote", "payment", "note"];
+            for (const field of fields) {
+                const values = [...new Set(matches.map(p => p[field]).filter(v => v !== null && v !== undefined))];
+                if (values.length === 1) target[field] = values[0];
+            }
+            // 시간/요금은 단위와 값을 한 쌍으로 비교해 잘못 조합하지 않습니다.
+            for (const [minutes, amount] of [["basicMinutes", "basicFee"], ["additionalMinutes", "additionalFee"]]) {
+                const pairs = matches.filter(p => p[minutes] > 0 && p[amount] != null).map(p => [p[minutes], p[amount]]);
+                const unique = [...new Set(pairs.map(pair => JSON.stringify(pair)))];
+                target[minutes] = unique.length === 1 ? JSON.parse(unique[0])[0] : null;
+                target[amount] = unique.length === 1 ? JSON.parse(unique[0])[1] : null;
+            }
+            for (const day of ["weekday", "saturday", "holiday"]) {
+                const pairs = matches.map(p => p.hours[day]).filter(pair => pair?.[0] && pair?.[1]);
+                const unique = [...new Set(pairs.map(pair => JSON.stringify(pair)))];
+                target.hours[day] = unique.length === 1 ? JSON.parse(unique[0]) : [null, null];
+            }
+            target.detailsStatus = "shared-address";
         }
         target.aliases.push(clean(r.parknm), clean(liveByCode.get(code)?.parknm));
         target.realtimeSupported = true;
