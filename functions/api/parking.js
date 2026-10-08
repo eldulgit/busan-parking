@@ -193,8 +193,8 @@ export async function onRequestGet(context) {
     const parkingList = mergeParking(...values, results[2].status === "rejected");
     for (const p of parkingList) p.addressStatus = p.address ? "available" : results[0].status === "rejected" ? "source-failed" : p.realtimeSupported && p.detailsStatus === "unmatched" ? "unmatched" : "missing";
     const unmatched = parkingList.filter(p => p.addressStatus === "unmatched").length;
-    if (unmatched) warnings.push(`실시간 주차장 ${unmatched}곳은 기본 정보 연결을 확인하지 못했습니다. 이름·구역 차이 또는 중복 주소 확인이 필요합니다.`);
     const sourceMissing = parkingList.filter(p => p.realtimeSupported && p.addressStatus === "missing").length;
-    if (sourceMissing) warnings.push(`실시간 주차장 ${sourceMissing}곳은 기본 정보가 연결됐지만 공공데이터에 주소가 없습니다.`);
-    return send({ parkingList, totalCount: parkingList.length, warnings, sourceStatus, fetchedAt: new Date().toISOString() });
+    // 주소 보완 현황은 카드에서 안내하고 상단의 조회 실패 경고와 분리합니다.
+    const addressDiagnostics = { unlinked: unmatched, sourceMissing };
+    return send({ parkingList, totalCount: parkingList.length, warnings, sourceStatus, addressDiagnostics, fetchedAt: new Date().toISOString() });
 }
