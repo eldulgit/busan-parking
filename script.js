@@ -99,14 +99,14 @@ async function load() {
     listElement.setAttribute("aria-busy", "true");
     statusElement.textContent = "전체 주차장 정보를 불러오는 중입니다."; warningElement.textContent = "";
     try {
-        const response = await fetch("/api/parking", { signal: AbortSignal.timeout(60000) });
+        const response = await fetch("/api/parking", { cache: "no-store", signal: AbortSignal.timeout(60000) });
         const data = await response.json();
         if (!response.ok || !Array.isArray(data.parkingList)) throw new Error(data.message || "조회에 실패했습니다.");
         parkingList = data.parkingList; shown = 30; loading = false; render();
         warningElement.textContent = (data.warnings || []).join(" ");
     } catch (error) {
         loading = false;
-        statusElement.textContent = error.name === "TimeoutError" ? "조회 시간이 초과되었습니다. 다시 시도해 주세요." : error.message;
+        statusElement.textContent = !navigator.onLine ? "인터넷 연결이 없어 주차정보를 조회할 수 없습니다. 연결 후 정보 새로고침을 눌러 주세요." : error.name === "TimeoutError" ? "조회 시간이 초과되었습니다. 다시 시도해 주세요." : error.message;
         if (parkingList.length) warningElement.textContent = "이전에 조회한 정보가 표시되어 있습니다. 최신 현황이 아닐 수 있습니다.";
     } finally { loading = false; reload.disabled = false; listElement.setAttribute("aria-busy", "false"); }
 }

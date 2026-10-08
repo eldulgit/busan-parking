@@ -5,6 +5,12 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#173e45">
   <title>부산 공영주차장</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="부산주차장">
+  <script src="pwa.js" defer></script>
   <link rel="stylesheet" href="style.css">
   <script src="script.js" defer></script>
 </head>
@@ -12,6 +18,11 @@
   <header class="site-header"><div class="header-inner"><a class="brand" href="./"><span class="brand-icon" aria-hidden="true">P</span><span>부산 공영주차장</span></a><span class="header-caption">주차부터 위치 확인까지</span></div></header>
   <main>
     <section class="intro"><p class="eyebrow">BUSAN PARKING</p><h1>주차할 곳, 편하게 찾아보세요.</h1><p>부산의 공영주차장을 검색하고 주차 현황과 위치를 확인하세요.</p></section>
+    <section id="install-panel" class="install-panel" aria-label="홈 화면 설치 안내" hidden>
+      <p id="install-message">홈 화면에 추가하면 앱처럼 사용할 수 있습니다.</p>
+      <button id="install-button" type="button" hidden>앱처럼 설치하기</button>
+    </section>
+    <p id="connection-message" class="warning" role="status" aria-live="polite"></p>
     <section class="search-panel" aria-label="주차장 검색">
       <label for="search-input">주차장 검색</label>
       <form id="search-form"><input id="search-input" type="search" placeholder="주차장 이름 또는 주소를 입력하세요" autocomplete="off"><button type="submit">검색</button><button type="button" id="reset-button" class="secondary">전체 보기</button></form>
