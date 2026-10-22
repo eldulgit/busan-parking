@@ -14,7 +14,7 @@ test('document examples use local parsing without a Gemini dependency',async()=>
     for(const [message,keyword,intent,min,limit] of [
         ['화명역 주차장을 찾아줘','화명역','search_parking',null,5],
         ['부산대에서 빈자리 10대 이상인 곳 3개만 찾아','부산대','find_available_parking',10,3],
-        ['부산대에서 제일 여유 있는 곳 알려줘','부산대','find_available_parking',null,1],
+        ['부산대에서 제일 여유 있는 곳 알려줘','부산대','find_available_parking',1,1],
         ['화명역 주차장 요금과 운영시간 알려줘','화명역','get_parking_detail',null,5],
         ['빈자리 10대 이상인 곳 3개만 찾아줘','','find_available_parking',10,3]
     ]){
@@ -25,7 +25,7 @@ test('document examples use local parsing without a Gemini dependency',async()=>
 test('conditions, missing/zero values, names and duplicate candidates',()=>{
     const query=validateConditions({intent:'find_available_parking',keyword:'부산대',limit:100,minAvailable:0});assert.equal(query.limit,20);
     const r=selectParking(data.parkingList,query);assert.deepEqual(r.parkingList.map(p=>p.live.available),[25,0]);
-    const all=selectParking(data.parkingList,validateConditions({intent:'find_available_parking',keyword:'부산대'}));assert.equal(all.parkingList.at(-1).name,'부산대 미제공');
+    const all=selectParking(data.parkingList,validateConditions({intent:'find_available_parking',keyword:'부산대'}));assert.deepEqual(all.parkingList.map(p=>p.name),['부산대역(남측)']);
     const ambiguous=selectParking([...data.parkingList,{...data.parkingList[0],address:'다른 주소'}],validateConditions({intent:'get_parking_detail',name:'화명역 주차장'}));assert.equal(ambiguous.needClarification,true);assert.equal(ambiguous.totalMatches,2);
     assert.equal(selectParking(data.parkingList,validateConditions({intent:'get_parking_detail',name:'화명역 주차장'})).parkingList.length,1);
     assert.equal(selectParking(data.parkingList,validateConditions({intent:'search_parking',keyword:'없는주차장123'})).parkingList.length,0);
@@ -58,4 +58,41 @@ test('coordinate integrity, swapped values, Haversine and nearest five',()=>{
     assert.equal(loc.nearest(list,{latitude:35,longitude:129}).length,5);assert.equal(loc.nearest(list,{latitude:35,longitude:129})[0].name,'P0');
     assert.equal(loc.format(.42),'420m');assert.equal(loc.format(1.84),'1.8km');
     const merged=mergeParking([{mgntNum:'a',pkNam:'좌표시험',xCdnt:'35.1',yCdnt:'129.1'}],[],[]);assert.equal(merged[0].xCdnt,'35.1');
+});
+
+test('자리 많이 빈 곳 and district suffixes use local availability search',async()=>{
+    const rows={parkingList:[
+        {name:'주차장 A',address:'부산 사하구',liveStatus:'available',live:{available:2}},
+        {name:'주차장 B',address:'부산 사하구',liveStatus:'available',live:{available:20}},
+        {name:'다른 지역',address:'부산 북구',liveStatus:'available',live:{available:100}}
+    ]};
+    for(const message of ['사하구쪽에 자리 많이 빈곳 찾아줘','사하구 쪽에 자리가 많이 비어 있는 곳 찾아줘','사하구에 자리 널널한 곳 알려줘','사하구에서 빈자리 많은 주차장 찾아줘']) {
+        const {confident,info}=interpretLocal(message);
+        assert.equal(confident,true,message);assert.equal(info.keyword,'사하구',message);assert.equal(info.intent,'find_available_parking');
+        const result=await answerRequest(message,{},async()=>rows,{fetchImpl:()=>{throw Error('Gemini must not run');}});
+        assert.equal(result.localRuleUsed,true);assert.deepEqual(result.parkingList.map(p=>p.name),['주차장 B','주차장 A']);
+    }
+});
+
+test('주차가능한 excludes full and unknown before sorting and limiting',async()=>{
+    const fixture={parkingList:[
+        {name:'사하 A',liveStatus:'available',live:{available:3}},
+        {name:'사하 B',liveStatus:'available',live:{available:0}},
+        {name:'사하 C',liveStatus:'unsupported'},
+        {name:'사하 D',liveStatus:'available',live:{available:20}},
+        {name:'사하 E',liveStatus:'unavailable',live:{available:50}},
+        {name:'사하 F',liveStatus:'available',live:{available:9}},
+        {name:'사하 G',liveStatus:'available',live:{available:100}}
+    ].map(p=>({...p,address:'부산 사하구'}))};
+    for(const message of ['주차가능한 사하구 주차장','사하구쪽에 자리 많이 빈곳 찾아줘','사하구 빈자리 많은 곳 3개만']) {
+        const result=await answerRequest(message,{},async()=>fixture);
+        assert.equal(result.interpretation.minAvailable,1);
+        assert.ok(result.parkingList.every(p=>p.liveStatus==='available'&&p.live.available>0));
+        assert.deepEqual(result.parkingList.map(p=>p.live.available),message.includes('3개')?[100,20,9]:[100,20,9,3]);
+    }
+    const ordinary=selectParking(fixture.parkingList,validateConditions({intent:'search_parking',keyword:'사하구',limit:20}));
+    assert.equal(ordinary.parkingList.length,7);
+    const fullOnly={parkingList:fixture.parkingList.filter(p=>p.live?.available===0)};
+    const empty=await answerRequest('주차가능한 사하구 주차장',{},async()=>fullOnly);
+    assert.equal(empty.parkingList.length,0);assert.match(empty.summary,/조건에 맞는 주차장이 없습니다/);
 });

@@ -1,5 +1,5 @@
 import { onRequestGet as parkingApi } from './parking.js';
-const VERSION = 'V8.1-hybrid-local-first';
+const VERSION = 'V8.1.2-hybrid-local-first';
 const clarify = '지역이나 주차장 이름과 원하는 조건을 알려주세요. 예: 화명에서 빈자리 10대 이상인 곳 3개만 찾아줘';
 const normalize = value => String(value || '').normalize('NFKC').toLowerCase().replace(/[\s,，()（）·]/g,'');
 const nameKey = value => normalize(value).replace(/공영주차장|주차장|주차/g,'');
@@ -8,7 +8,7 @@ const intents = new Set(['search_parking','find_available_parking','get_parking_
 export function validateConditions(value) {
     if (!value || !intents.has(value.intent)) throw new Error('invalid conditions');
     const raw = value.minAvailable;
-    const minAvailable = raw == null || raw === '' ? null : Number(raw);
+    const minAvailable = raw == null || raw === '' ? (value.intent === 'find_available_parking' ? 1 : null) : Number(raw);
     if (minAvailable !== null && (!Number.isInteger(minAvailable) || minAvailable<0 || minAvailable>100000)) throw new Error('invalid minimum');
     const limit = value.limit == null ? 5 : Number(value.limit);
     if (!Number.isFinite(limit)) throw new Error('invalid limit');
@@ -17,7 +17,9 @@ export function validateConditions(value) {
 }
 // 명확한 문형만 로컬에서 해석합니다. 낯선 나머지 표현은 AI에 전달합니다.
 export function interpretLocal(message) {
-    const source = message.normalize('NFKC').trim();
+    const source = message.normalize('NFKC').trim()
+        // '자리 많이 빈 곳'도 '빈자리 많은 곳'과 같은 조건입니다.
+        .replace(/(?:빈\s*|주차\s*)?자리(?:가)?\s*(?:많이\s*(?:빈|비어\s*있는|남은|남아\s*있는)|많은|널널한|넉넉한)/g,'빈자리 많은');
     const min = source.match(/빈\s*자리\s*(\d+)\s*대?\s*이상/);
     const count = source.match(/(\d+)\s*(?:개|곳)(?:만)?/);
     const detail = /요금|운영\s*시간|관리\s*기관|상세|주소/.test(source);
@@ -30,7 +32,8 @@ export function interpretLocal(message) {
         .replace(/요금(?:과|와)?|운영\s*시간(?:과|와)?|관리\s*기관|상세(?:정보)?|주소/g,' ')
         .replace(/현재|지금|가장|제일|한\s*곳|여유\s*있는|빈\s*자리\s*많은(?:\s*순)?|주차\s*가능(?:한)?/g,' ')
         .replace(/찾아\s*줘|찾아|알려\s*줘|알려|보여\s*줘|보여|추천해\s*줘/g,' ')
-        .replace(/쪽에서|근처에서|주변에서|에서|쪽|근처|주변|인\s*곳|곳/g,' ')
+        .replace(/(구|군|동|역)에(?=\s|$)/g,'$1 ')
+        .replace(/쪽(?:에서|에)?|근처(?:에서|에)?|주변(?:에서|에)?|에서|인\s*곳|곳/g,' ')
         .replace(/\s+/g,' ').trim();
     // 문장 전체를 임의의 주차장명으로 간주하지 않습니다.
     const confident = related && (keyword === '' ? available || count : /^[가-힣A-Za-z0-9()（）·,._\-]+$/.test(keyword));
@@ -60,7 +63,7 @@ keyword는 지역/주차장명만, 상세조회 name은 주차장 일반 표현�
     }
     throw new Error('temporary');
 }
-const vacancy=p=>p.liveStatus==='available'&&typeof p.live?.available==='number'&&p.live.available>=0?p.live.available:null;
+const vacancy=p=>p.liveStatus==='available'&&Number.isInteger(p.live?.available)&&p.live.available>=0?p.live.available:null;
 export function selectParking(list,info) {
     const target=normalize(info.keyword);
     let rows=list.filter(p=>!target||[p.name,p.address,p.operator,...(p.aliases||[])].some(v=>normalize(v).includes(target)));
