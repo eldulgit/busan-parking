@@ -1,3 +1,138 @@
+# 부산 공영주차장 V8.1 적용 안내
+
+새로 첨부된 V6.3 Gemini API, V6.4 하이브리드, V7 GPS, V8 마이크 워드 4개를 기준으로 수정했습니다.
+기본 화면은 앞서 전달한 V6.2 ZIP의 민트·크림 디자인을 유지합니다. 기본 style.css와 PWA 설치 코드는 동일합니다.
+참고 링크의 디자인을 가져오지 않고 기능과 환경변수 이름만 참고했습니다.
+
+## 이번 파일의 실제 구조
+
+- 일반 검색: 기존 전체 기본·실시간 목록 검색, 카드, 상세정보, 카카오맵 유지
+- 자연어 검색: 명확한 문장은 프로그램 규칙으로 즉시 처리하고, 복잡한 문장만 Gemini가 JSON 검색조건으로 해석
+- 검색 결과와 안내 문장: /api/parking 실제 데이터에 프로그램이 필터·정렬·개수 제한을 적용해 생성
+- GPS: 브라우저가 현재 위치를 얻고 좌표가 있는 주차장과 직선거리를 계산, 가까운 5곳 선택
+- 주변 빈자리순: 가까운 5곳을 먼저 확정한 뒤 그 안에서 빈자리 많은 순으로 정렬
+- 음성: 브라우저 한국어 음성 인식 → 입력창에 문장 표시 → 일반 요청은 자연어 검색, 내 주변 요청은 GPS
+- MCP: 기존 mcp 폴더를 V6.2 학습·Inspector 용도로 그대로 유지. 웹 검색은 MCP를 거치지 않음
+
+사진의 이전 전체 MCP 연결 계획 대신, 최신 워드의 서비스/학습 분리 기준을 적용했습니다.
+방금 진행하던 직접 MCP 연결 코드는 이 ZIP에 포함하지 않았습니다.
+
+## 적용 방법
+
+이 ZIP의 busan-parking-basic 폴더 안 내용을 현재 사용자의 저장소 최상위에 복사합니다.
+참고로 공유한 appsunggon/new-busan-parking 저장소에 그대로 덮어쓰는 패치가 아닙니다.
+앞서 전달한 민트 디자인 ZIP을 이어서 수정한 전체 프로젝트입니다.
+
+Cloudflare Pages 빌드 설정:
+
+| 항목 | 값 |
+| --- | --- |
+| 프레임워크 | None |
+| 빌드 명령 | npm run build |
+| 빌드 출력 디렉터리 | public |
+| 루트 디렉터리 | package.json이 있는 프로젝트 최상위 |
+
+wrangler.toml에도 public 출력 경로를 지정했습니다. 기존 출력 경로가 / 또는 .이면 public으로 변경합니다.
+빌드는 화면에 필요한 파일만 public으로 복사합니다. functions는 Pages Functions로 별도 빌드됩니다.
+서버 소스·테스트·설정 파일을 정적 사이트에 복사하지 않습니다.
+
+Cloudflare Variables and Secrets:
+
+| 이름 | 설정 |
+| --- | --- |
+| SERVICE_KEY 또는 DATA_API_KEY | 기존 공공데이터 키 Secret 유지. 두 이름 모두 지원 |
+| GEMINI_API_KEY | Google AI Studio에서 발급한 키를 Secret으로 등록 |
+| GEMINI_MODEL | 선택. 기본값 gemini-3.8-flash. 계정에서 사용 가능한 모델로 변경 가능 |
+
+키는 소스·채팅·브라우저 파일에 넣지 않습니다. Secret은 설정 후 재배포해야 실행 환경에 반영됩니다.
+복잡한 자연어 요청에는 Gemini API 호출이 필요하며 해당 계정의 사용량/할당량이 적용됩니다.
+키가 없어도 일반 검색·명확한 조건검색·GPS·음성의 로컬 검색 경로는 사용할 수 있습니다.
+Gemini가 429/503/혼잡 오류를 반환하면 최초 요청 이후 최대 2회 자동 재시도하고 한국어로 안내합니다.
+GEMINI_MODEL을 바꿀 때는 JSON 응답 및 thinkingLevel low 지원 여부를 함께 확인합니다.
+
+배포 확인은 /api/ai-parking을 열어 version이 V8.1-hybrid-local-first인지 확인합니다.
+geminiConfigured는 Secret 존재 여부이며 실제 유효한 키/할당량을 보증하는 연결 시험은 아닙니다.
+임시 ai-test.js는 최종본에 넣지 않았습니다. 실제 자연어 요청으로 Gemini 동작을 확인합니다.
+
+## 테스트 문장
+
+1. 화명역 주차장을 찾아줘
+2. 화명역 주차장 요금과 운영시간 알려줘
+3. 부산대에서 빈자리 10대 이상인 곳 3개만 찾아
+4. 부산대에서 제일 여유 있는 곳 알려줘
+5. 없는주차장123 알려줘
+6. 오늘 점심 뭐 먹을까
+7. 화명에서 잠깐 차를 둘 만한 장소가 있을까 — 복잡한 표현의 Gemini 경로 확인
+8. 내 주변 주차장 찾아줘 — GPS 경로
+9. 내 주변에서 빈자리 많은 주차장 찾아줘 — 주변 5곳 내 빈자리 정렬
+
+상세조회 이름이 여러 곳과 일치하면 후보를 반환합니다. 이름·주소를 확인해 다시 요청할 수 있습니다.
+빈자리 0대와 미제공 값을 구분하며 미제공 항목은 최소 빈자리 조건에 포함하지 않습니다.
+조건의 limit은 서버에서 1~20 정수로 제한합니다. 주차장 숫자와 요금은 Gemini가 생성하지 않습니다.
+현재 화면은 요청마다 독립적으로 처리하며 이전 질문의 후속 대화를 기억하지 않습니다.
+
+## GPS와 음성
+
+위치는 GPS 버튼 또는 내 주변 요청을 실행했을 때만 요청합니다.
+위도·경도는 브라우저 메모리에서 계산에만 사용하고 Gemini나 주차장 API에 보내지 않습니다.
+새로고침은 마지막 위치를 유지하고, 이름 검색이나 전체 보기는 위치 모드를 해제합니다.
+비어 있는 좌표, 숫자가 아닌 좌표, 범위 밖 좌표는 제외하고 뒤바뀐 위도·경도는 범위로 보정합니다.
+가장 가까운 주차장도 50km 초과이면 부산 데이터 범위와 멀다는 안내를 표시합니다.
+카드의 거리는 직선거리입니다. 도로 이동거리·소요시간이 아니며 카카오맵에서 위치를 확인합니다.
+
+첨부 ZIP API가 좌표를 버리고 있어 functions/api/parking.js에서 기본 데이터의 xCdnt/yCdnt 전달만 보완했습니다.
+동일 주소의 여러 항목은 좌표 쌍이 유일한 경우만 보완합니다. 기존 주소 매칭을 추측으로 변경하지 않았습니다.
+이름이 연결되지 않거나 원본 좌표가 없는 곳은 GPS 결과에서 빠질 수 있습니다.
+
+마이크는 SpeechRecognition/webkitSpeechRecognition 지원 브라우저에서 동작합니다.
+ko-KR, 단발 인식, 최종 결과 1개로 설정했습니다. 음성은 인식 후 자동으로 검색합니다.
+앱 코드가 음성 녹음 파일을 저장하지 않으며 브라우저 음성 서비스가 돌려준 텍스트를 사용합니다.
+지원 여부는 브라우저/OS에 따라 다릅니다. 미지원/권한 거부/네트워크 오류 시 텍스트와 GPS는 계속 사용할 수 있습니다.
+모바일에서 보내기 + 58px 마이크 버튼은 같은 줄이며, GPS 버튼도 검색 버튼 옆에 배치합니다.
+
+## 수정 파일
+
+index.html, script.js, service-worker.js, functions/api/parking.js, README.md
+
+추가: functions/api/ai-parking.js, location.js, v7.css, v8.css, package.json, package-lock.json,
+wrangler.toml, scripts/build.mjs, .dev.vars.example, tests/
+
+원래 파일명은 script.js이므로 참고 문서의 app.js로 바꾸지 않았습니다.
+스타일은 원래 style.css를 유지하고 새 버튼과 거리 표시만 v7.css/v8.css에서 확장합니다.
+
+## 개발과 검증
+
+Node.js 22 이상에서:
+
+```bash
+npm ci
+npm test
+npm run build
+npm run check:bundle
+```
+
+로컬 실행은 .dev.vars.example을 .dev.vars로 복사하고 키를 입력한 뒤 npm run dev를 실행합니다.
+MCP 학습 서버는 별도로 cd mcp → npm ci → npm run inspect로 실행합니다.
+
+이번 확인: 문서 예시 검색, 실제 데이터 필터·정렬·상세 중복 후보, Gemini JSON 응답과 재시도 모의 시험,
+좌표·Haversine·가까운 5곳, GPS 정렬/새로고침, 음성→텍스트→검색, GPS/마이크 권한 오류 등 10개 테스트 통과.
+Gemini 응답과 브라우저 GPS·SpeechRecognition은 모의 환경으로 확인했습니다. Cloudflare Functions 번들 생성도 통과했습니다.
+실제 Secret을 사용한 Gemini 호출, 운영 배포, 휴대폰 GPS·마이크 권한, 브라우저의 실제 배치/음성 인식은 이번 작업에서 확인하지 못했습니다.
+배포 후 위 예시 문장과 실제 휴대폰에서 최종 확인해 주세요.
+
+권장 커밋 메시지:
+
+```text
+feat: 하이브리드 자연어 검색과 GPS·음성 입력 추가
+```
+
+참고한 자료: 첨부 워드 4개, https://new-busan-parking.pages.dev/,
+https://github.com/appsunggon/new-busan-parking (359665b), Google Gemini API 공식 문서.
+
+---
+
+아래는 이전 버전의 변경 기록입니다. 현재 실행/배포/AI 연결 상태는 위 안내가 우선합니다.
+
 # 부산 공영주차장 통합 검색
 
 HTML / CSS / JavaScript와 Cloudflare Pages Functions만 사용하는 버전입니다.

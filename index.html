@@ -12,6 +12,9 @@
   <meta name="apple-mobile-web-app-title" content="부산주차장">
   <script src="pwa.js" defer></script>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="v7.css">
+  <link rel="stylesheet" href="v8.css">
+  <script src="location.js" defer></script>
   <script src="script.js" defer></script>
 </head>
 <body>
@@ -25,15 +28,18 @@
     <p id="connection-message" class="warning" role="status" aria-live="polite"></p>
     <section class="search-panel" aria-label="주차장 검색">
       <label for="search-input">주차장 검색</label>
-      <form id="search-form"><input id="search-input" type="search" placeholder="주차장 이름 또는 주소를 입력하세요" autocomplete="off"><button type="submit">검색</button><button type="button" id="reset-button" class="secondary">전체 보기</button></form>
+      <form id="search-form"><input id="search-input" type="search" placeholder="주차장 이름 또는 주소를 입력하세요" autocomplete="off"><button type="submit">검색</button><button id="location-button" type="button" class="secondary" title="현재 위치 주변 주차장 찾기" aria-label="현재 위치 주변 주차장 찾기">📍</button><button type="button" id="reset-button" class="secondary">전체 보기</button></form>
       <div class="search-bottom"><span class="search-tip">실시간 현황을 제공하는 주차장을 먼저 보여드려요.</span><button id="reload-button" type="button" class="secondary refresh">정보 새로고침</button></div>
+      <div class="sort-options" aria-label="주차장 정렬"><button type="button" id="default-sort" class="secondary" aria-pressed="true">기본순</button><button type="button" id="available-sort" class="secondary" aria-pressed="false">빈자리 많은 순</button></div>
+      <p id="location-message" class="warning" role="status" aria-live="polite"></p>
       <p id="warning-message" class="warning" role="status"></p>
     </section>
     <section class="search-panel ai-panel" aria-labelledby="ai-title">
       <h2 id="ai-title">AI에게 주차장 찾기 요청</h2>
-      <p id="ai-help">AI 연결 준비 중입니다. 지금은 위 검색창에서 주차장 이름이나 주소로 검색해 주세요.</p>
-      <form id="ai-form"><label for="ai-input">어떤 주차장을 찾으세요?</label><textarea id="ai-input" rows="2" maxlength="500" placeholder="화명 쪽에서 지금 빈자리 많은 주차장 찾아줘" aria-describedby="ai-help" disabled></textarea><button type="submit" disabled>AI 연결 준비 중</button></form>
-      <div id="ai-result" role="status" aria-live="polite"><p id="ai-explanation">AI 요청 기능은 추후 제공됩니다.</p><div id="ai-parking-list" class="parking-list" aria-label="AI 주차장 검색 결과"></div></div>
+      <p id="ai-help">원하는 지역과 조건을 입력하거나 마이크를 눌러 말해보세요. 내 주변 검색은 현재 위치로 찾아드려요.</p>
+      <form id="ai-form"><label for="ai-input">어떤 주차장을 찾으세요?</label><textarea id="ai-input" rows="2" maxlength="1000" placeholder="화명 쪽에서 지금 빈자리 많은 주차장 찾아줘" aria-describedby="ai-help"></textarea><div class="ai-actions"><button id="ai-send" type="submit">보내기</button><button id="voice-button" type="button" class="secondary" aria-label="음성으로 주차장 찾기" aria-pressed="false">🎤</button></div></form>
+      <p id="voice-status" class="warning" role="status" aria-live="polite"></p>
+      <div id="ai-result" role="status" aria-live="polite"><p id="ai-explanation">예: 화명에서 빈자리 10대 이상인 곳 3개만 찾아줘</p><div id="ai-parking-list" class="parking-list" aria-label="AI 주차장 검색 결과"></div></div>
     </section>
     <div class="results-heading"><h2>주차장 목록</h2><p id="status-message" role="status" aria-live="polite"></p></div>
     <section id="parking-list" class="parking-list" aria-label="검색 결과" aria-busy="true"></section>

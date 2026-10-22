@@ -107,6 +107,7 @@ export function mergeParking(basic, list, live, liveFailed = false) {
     const rows = basic.map((r, i) => ({
         id: `basic-${clean(r.mgntNum) || i}`, name: clean(r.pkNam) || "이름 없음",
         address: clean(r.doroAddr) || clean(r.jibunAddr), roadAddress: clean(r.doroAddr), lotAddress: clean(r.jibunAddr),
+        xCdnt: clean(r.xCdnt), yCdnt: clean(r.yCdnt),
         capacity: number(r.pkCnt), type: clean(r.pkFm), operator: clean(r.guNm), phone: clean(r.tponNum),
         basicMinutes: number(r.pkBascTime), basicFee: number(r.tenMin), additionalMinutes: number(r.pkAddTime), additionalFee: number(r.feeAdd),
         dayFee: number(r.ftDay), monthFee: number(r.ftMon), feeNote: clean(r.feeInfo), payment: clean(r.payMtd), note: clean(r.spclNote),
@@ -155,6 +156,8 @@ export function mergeParking(basic, list, live, liveFailed = false) {
                 const unique = [...new Set(pairs.map(pair => JSON.stringify(pair)))];
                 target.hours[day] = unique.length === 1 ? JSON.parse(unique[0]) : [null, null];
             }
+            const coordinatePairs = [...new Set(matches.filter(p => p.xCdnt && p.yCdnt).map(p => JSON.stringify([p.xCdnt,p.yCdnt])))];
+            if (coordinatePairs.length === 1) [target.xCdnt,target.yCdnt] = JSON.parse(coordinatePairs[0]);
             target.detailsStatus = "shared-address";
         }
         target.aliases.push(clean(r.parknm), clean(liveByCode.get(code)?.parknm));
@@ -170,7 +173,7 @@ export function mergeParking(basic, list, live, liveFailed = false) {
 }
 export async function onRequestGet(context) {
     const headers = { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" };
-    let key = context.env.SERVICE_KEY?.trim();
+    let key = (context.env.SERVICE_KEY || context.env.DATA_API_KEY)?.trim();
     const send = (data, status = 200) => new Response(JSON.stringify(data), { status, headers });
     if (!key) return send({ message: "인증키가 설정되지 않았습니다. SERVICE_KEY를 확인해 주세요." }, 503);
     try { key = decodeURIComponent(key); } catch { /* 원래 키 사용 */ }

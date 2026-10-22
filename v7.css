@@ -1,0 +1,11 @@
+/* 기존 민트·크림 디자인을 그대로 사용하며 추가 기능만 배치합니다. */
+.sort-options { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.sort-options button { font-size: .85rem; }
+.sort-options button[aria-pressed="true"] { background: #d8eee5; border-color: #6fae9b; }
+#location-button { min-width: 50px; }
+.distance-badge { display: inline-block; background: #e7f3eb; color: #356651; padding: 7px 11px; border-radius: 12px; font-size: .85rem; }
+@media (max-width: 600px) {
+  #search-form { display: grid; grid-template-columns: 1fr 58px; }
+  #search-input { grid-column: 1 / -1; }
+  #reset-button { grid-column: 1 / -1; }
+}

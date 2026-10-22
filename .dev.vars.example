@@ -1,0 +1,5 @@
+# .dev.vars로 복사해 실제 값을 입력하세요. Git에는 포함하지 않습니다.
+SERVICE_KEY=공공데이터_인증키
+# DATA_API_KEY도 지원합니다. 기존 Secret을 변경할 필요가 없습니다.
+GEMINI_API_KEY=Gemini_API_키
+GEMINI_MODEL=gemini-3.8-flash

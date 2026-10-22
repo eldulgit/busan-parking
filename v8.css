@@ -1,0 +1,7 @@
+.ai-actions { display: grid; grid-template-columns: minmax(0,1fr) 58px; gap: 10px; }
+#voice-button { width: 58px; min-height: 48px; }
+#voice-button.listening { background: #c74848; color: #fff; animation: microphone-pulse 1s infinite; }
+#ai-input:not(:disabled) { background: #fff; color: #253e38; }
+#ai-explanation { white-space: pre-wrap; overflow-wrap: anywhere; }
+@keyframes microphone-pulse { 50% { box-shadow: 0 0 0 5px #c7484826; } }
+@media (prefers-reduced-motion: reduce) { #voice-button.listening { animation: none; } }
