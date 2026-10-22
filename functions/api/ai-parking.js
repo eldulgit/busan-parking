@@ -1,5 +1,5 @@
 import { onRequestGet as parkingApi } from './parking.js';
-const VERSION = 'V8.1.2-hybrid-local-first';
+const VERSION = 'V8.1.3-hybrid-local-first';
 const clarify = '지역이나 주차장 이름과 원하는 조건을 알려주세요. 예: 화명에서 빈자리 10대 이상인 곳 3개만 찾아줘';
 const normalize = value => String(value || '').normalize('NFKC').toLowerCase().replace(/[\s,，()（）·]/g,'');
 const nameKey = value => normalize(value).replace(/공영주차장|주차장|주차/g,'');

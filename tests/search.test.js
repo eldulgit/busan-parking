@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { interpretLocal, validateConditions, selectParking, answerRequest, interpretGemini, onRequestPost } from '../functions/api/ai-parking.js';
-import { mergeParking } from '../functions/api/parking.js';
+import { mergeParking, basicLiveInfo } from '../functions/api/parking.js';
 const data={parkingList:[
     {name:'화명역',address:'부산 북구',liveStatus:'available',live:{available:15,total:37}},
     {name:'부산대역(남측)',liveStatus:'available',live:{available:25,total:50}},
@@ -95,4 +95,24 @@ test('주차가능한 excludes full and unknown before sorting and limiting',asy
     const fullOnly={parkingList:fixture.parkingList.filter(p=>p.live?.available===0)};
     const empty=await answerRequest('주차가능한 사하구 주차장',{},async()=>fullOnly);
     assert.equal(empty.parkingList.length,0);assert.match(empty.summary,/조건에 맞는 주차장이 없습니다/);
+});
+
+test('Busan currava is used without guessing missing values or timestamps',()=>{
+    const raw=(name,value,total='20')=>({pkNam:name,mgntNum:name,currava:value,pkCnt:total,fnlDt:'01/01/2000'});
+    const rows=mergeParking([raw('양수','7'),raw('만차','0'),raw('미제공','-'),raw('빈값',''),raw('비정상','100'),raw('면수없음','4','-')],[],[]);
+    assert.equal(rows.find(p=>p.name==='양수').live.available,7);
+    assert.equal(rows.find(p=>p.name==='만차').live.available,0);
+    assert.equal(rows.find(p=>p.name==='만차').liveStatus,'available');
+    for(const name of ['미제공','빈값','비정상'])assert.equal(rows.find(p=>p.name===name).liveStatus,'unsupported');
+    assert.equal(rows.find(p=>p.name==='양수').live.updatedAt,null);
+    assert.equal(rows.find(p=>p.name==='양수').live.occupied,null);
+    assert.equal(rows.find(p=>p.name==='면수없음').live.total,null);
+    assert.equal(basicLiveInfo(raw('음수','-1')),null);
+    assert.equal(basicLiveInfo(raw('문자','foo')),null);
+    const basic=[raw('부산대역(남측)','7')],list=[{parkgcd:'a',parknm:'부산대역(남측)'}];
+    const facility=[{parkgcd:'a',curravacnt:5,maxcnt:20,parkingcnt:15,lastupdatetime:'2026-10-22 12:00:00'}];
+    assert.equal(mergeParking(basic,list,facility)[0].live.source,'bisco');
+    assert.equal(mergeParking(basic,list,[],true)[0].live.source,'busan-basic');
+    const results=selectParking(rows,validateConditions({intent:'find_available_parking',keyword:''}));
+    assert.deepEqual(results.parkingList.map(p=>p.live.available),[7,4]);
 });

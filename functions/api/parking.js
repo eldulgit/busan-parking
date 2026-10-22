@@ -103,6 +103,14 @@ function liveInfo(row) {
     return { valid, available: valid ? available : null, total: total > 0 ? total : null,
         occupied: valid ? occupied : null, updatedAt: clean(row.lastupdatetime) };
 }
+// 부산시 기본정보 API도 currava(실시간주차면수)를 제공할 수 있습니다.
+// '-'와 빈값을 0으로 바꾸지 않으며 데이터기준일자를 실시간 갱신시각으로 쓰지 않습니다.
+export function basicLiveInfo(row) {
+    const available = number(row.currava), total = number(row.pkCnt);
+    const valid = Number.isInteger(available) && available >= 0
+        && (total === null || (Number.isInteger(total) && total > 0 && available <= total));
+    return valid ? { valid: true, available, total, occupied: null, updatedAt: null, source: "busan-basic" } : null;
+}
 export function mergeParking(basic, list, live, liveFailed = false) {
     const rows = basic.map((r, i) => ({
         id: `basic-${clean(r.mgntNum) || i}`, name: clean(r.pkNam) || "이름 없음",
@@ -112,7 +120,7 @@ export function mergeParking(basic, list, live, liveFailed = false) {
         basicMinutes: number(r.pkBascTime), basicFee: number(r.tenMin), additionalMinutes: number(r.pkAddTime), additionalFee: number(r.feeAdd),
         dayFee: number(r.ftDay), monthFee: number(r.ftMon), feeNote: clean(r.feeInfo), payment: clean(r.payMtd), note: clean(r.spclNote),
         hours: { weekday: [clean(r.svcSrtTe), clean(r.svcEndTe)], saturday: [clean(r.satSrtTe), clean(r.satEndTe)], holiday: [clean(r.hldSrtTe), clean(r.hldEndTe)] },
-        detailsStatus: "basic", live: null, liveStatus: "unsupported", aliases: []
+        detailsStatus: "basic", basicLive: basicLiveInfo(r), live: basicLiveInfo(r), liveStatus: basicLiveInfo(r) ? "available" : "unsupported", aliases: []
     }));
     const byName = new Map();
     for (const r of rows) { const k = nameKey(r.name); if (k) byName.set(k, [...(byName.get(k) || []), r]); }
@@ -158,13 +166,19 @@ export function mergeParking(basic, list, live, liveFailed = false) {
             }
             const coordinatePairs = [...new Set(matches.filter(p => p.xCdnt && p.yCdnt).map(p => JSON.stringify([p.xCdnt,p.yCdnt])))];
             if (coordinatePairs.length === 1) [target.xCdnt,target.yCdnt] = JSON.parse(coordinatePairs[0]);
+            // 같은 이름/주소의 중복 원본도 수치가 일치하는 경우에만 보완합니다.
+            const basicValues = [...new Set(matches.filter(p => p.basicLive).map(p => JSON.stringify(p.basicLive)))];
+            if (basicValues.length === 1) target.basicLive = JSON.parse(basicValues[0]);
             target.detailsStatus = "shared-address";
         }
         target.aliases.push(clean(r.parknm), clean(liveByCode.get(code)?.parknm));
         if (aliasKey) target.aliases.push(...matches.map(p => p.name));
         target.realtimeSupported = true;
-        target.live = liveInfo(liveByCode.get(code));
-        target.liveStatus = liveFailed || !target.live || !target.live.valid ? "unavailable" : "available";
+        const facilityLive = liveInfo(liveByCode.get(code));
+        target.live = !liveFailed && facilityLive?.valid
+            ? { ...facilityLive, source: "bisco" }
+            : target.basicLive || facilityLive;
+        target.liveStatus = target.live?.valid ? "available" : "unavailable";
     }
     return rows.sort((a, b) => {
         const priority = p => p.liveStatus === "available" ? 0 : p.id.startsWith("live-") || p.live ? 1 : 2;
@@ -199,5 +213,12 @@ export async function onRequestGet(context) {
     const sourceMissing = parkingList.filter(p => p.realtimeSupported && p.addressStatus === "missing").length;
     // 주소 보완 현황은 카드에서 안내하고 상단의 조회 실패 경고와 분리합니다.
     const addressDiagnostics = { unlinked: unmatched, sourceMissing };
-    return send({ parkingList, totalCount: parkingList.length, warnings, sourceStatus, addressDiagnostics, fetchedAt: new Date().toISOString() });
+    const liveDiagnostics = {
+        basicProvided: values[0].filter(r => basicLiveInfo(r)).length,
+        basicMissing: values[0].filter(r => clean(r.currava) === null).length,
+        basicInvalid: values[0].filter(r => clean(r.currava) !== null && !basicLiveInfo(r)).length,
+        facilityProvided: parkingList.filter(p => p.live?.valid && p.live.source === "bisco").length,
+        basicUsed: parkingList.filter(p => p.live?.valid && p.live.source === "busan-basic").length
+    };
+    return send({ parkingList, totalCount: parkingList.length, warnings, sourceStatus, addressDiagnostics, liveDiagnostics, fetchedAt: new Date().toISOString() });
 }

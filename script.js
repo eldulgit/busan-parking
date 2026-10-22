@@ -43,8 +43,8 @@ function card(p) {
     addressBox.append(element("p", text(p.address, "주소가 제공되지 않았습니다. 지도에서 위치를 확인하세요."), "address"));
     article.append(addressBox);
     if (isLive) {
-        article.append(element("p", p.live.available === 0 ? `만차 · 전체 ${p.live.total}면` : `주차 가능 ${p.live.available}면 / 전체 ${p.live.total}면`, `availability ${p.live.available === 0 ? "full" : ""}`));
-        article.append(element("p", `주차 중 ${p.live.occupied}대 · 갱신 ${text(p.live.updatedAt)}`, "updated"));
+        article.append(element("p", p.live.available === 0 ? `만차${p.live.total == null ? "" : ` · 전체 ${p.live.total}면`}` : `주차 가능 ${p.live.available}면${p.live.total == null ? "" : ` / 전체 ${p.live.total}면`}`, `availability ${p.live.available === 0 ? "full" : ""}`));
+        article.append(element("p", [p.live.occupied == null ? null : `주차 중 ${p.live.occupied}대`, p.live.updatedAt ? `갱신 ${p.live.updatedAt}` : "제공기관에서 실시간 갱신시각을 제공하지 않았습니다."].filter(Boolean).join(" · "), "updated"));
     } else {
         const capacity = p.capacity ?? p.live?.total;
         article.append(element("p", capacity == null ? "주차면수 정보 없음" : `전체 ${capacity}면`, "capacity"));
