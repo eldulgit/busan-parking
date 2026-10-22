@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { interpretLocal, validateConditions, selectParking, answerRequest, interpretGemini, onRequestPost } from '../functions/api/ai-parking.js';
-import { mergeParking, basicLiveInfo } from '../functions/api/parking.js';
+import { mergeParking, basicLiveInfo, filterLocatable } from '../functions/api/parking.js';
 const data={parkingList:[
     {name:'화명역',address:'부산 북구',liveStatus:'available',live:{available:15,total:37}},
     {name:'부산대역(남측)',liveStatus:'available',live:{available:25,total:50}},
@@ -115,4 +115,20 @@ test('Busan currava is used without guessing missing values or timestamps',()=>{
     assert.equal(mergeParking(basic,list,[],true)[0].live.source,'busan-basic');
     const results=selectParking(rows,validateConditions({intent:'find_available_parking',keyword:''}));
     assert.deepEqual(results.parkingList.map(p=>p.live.available),[7,4]);
+});
+
+test('location filtering is shared by list and AI, retains precise-address zones',()=>{
+    const rows=[
+        {id:'a',name:'3구역 2소',address:'기장군 기장읍 38-0'},
+        {id:'b',name:'1구역 1소',address:'기장군 기장읍 278-3'},
+        {id:'c',name:'예비'},
+        {id:'d',name:'일반 주차장'},
+        {id:'e',name:'3구역 2소',address:'부산 기장군 기장읍 대라리 38'},
+        {id:'f',name:'1구역 2소',xCdnt:'35.1',yCdnt:'129.1'}
+    ];
+    const result=filterLocatable(rows);assert.equal(result.excluded.length,3);
+    assert.deepEqual(result.parkingList.map(p=>p.id),['d','e','f']);
+    assert.equal(rows.length,6);assert.equal(rows[0].address,'기장군 기장읍 38-0');
+    const ai=selectParking(rows,validateConditions({intent:'search_parking',keyword:'3구역'}));
+    assert.deepEqual(ai.parkingList.map(p=>p.id),['e']);
 });

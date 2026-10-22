@@ -1,5 +1,5 @@
-import { onRequestGet as parkingApi } from './parking.js';
-const VERSION = 'V8.1.3-hybrid-local-first';
+import { onRequestGet as parkingApi, filterLocatable } from './parking.js';
+const VERSION = 'V8.1.4-hybrid-local-first';
 const clarify = '지역이나 주차장 이름과 원하는 조건을 알려주세요. 예: 화명에서 빈자리 10대 이상인 곳 3개만 찾아줘';
 const normalize = value => String(value || '').normalize('NFKC').toLowerCase().replace(/[\s,，()（）·]/g,'');
 const nameKey = value => normalize(value).replace(/공영주차장|주차장|주차/g,'');
@@ -65,6 +65,7 @@ keyword는 지역/주차장명만, 상세조회 name은 주차장 일반 표현�
 }
 const vacancy=p=>p.liveStatus==='available'&&Number.isInteger(p.live?.available)&&p.live.available>=0?p.live.available:null;
 export function selectParking(list,info) {
+    list = filterLocatable(list).parkingList;
     const target=normalize(info.keyword);
     let rows=list.filter(p=>!target||[p.name,p.address,p.operator,...(p.aliases||[])].some(v=>normalize(v).includes(target)));
     rows.sort((a,b)=>Number(!normalize(a.name).startsWith(target))-Number(!normalize(b.name).startsWith(target)));

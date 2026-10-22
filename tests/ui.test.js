@@ -3,11 +3,12 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {JSDOM} from 'jsdom';
 const pause=()=>new Promise(r=>setTimeout(r,15));
-async function setup({speech=true,gpsError=false}={}){
+async function setup({speech=true,gpsError=false,extraRows=[]}={}){
     const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
     const dom=new JSDOM(html,{url:'https://parking.test/',runScripts:'outside-only'});const w=dom.window;
     const requests=[];
     const rows=Array.from({length:6},(_,i)=>({id:String(i),name:`주차장${i}`,address:'부산',xCdnt:35+i*.01,yCdnt:129,liveStatus:'available',live:{available:i===5?99:i,total:100,occupied:100-i}}));
+    rows.push(...extraRows);
     Object.defineProperty(w,'isSecureContext',{value:true});
     w.AbortSignal=AbortSignal;
     w.fetch=async(url,options)=>{requests.push({url,body:options?.body});return {ok:true,json:async()=>url==='/api/parking'?{parkingList:rows,warnings:[]}:{success:true,summary:'조건으로 1곳을 찾았습니다.',parkingList:[rows[0]]}};};
@@ -56,4 +57,20 @@ test('permission refusal, unsupported speech and microphone errors preserve sear
     assert.equal(d.querySelectorAll('#parking-list .parking-card').length,6);s.dom.window.close();
     const v=await setup();v.w.document.querySelector('#voice-button').click();v.w.mockRecognition.onerror({error:'not-allowed'});
     assert.match(v.w.document.querySelector('#voice-status').textContent,/마이크 권한/);assert.equal(v.w.document.querySelector('#voice-button').getAttribute('aria-pressed'),'false');v.dom.window.close();
+});
+
+test('unknown zone entries are excluded and normal search is preserved',async()=>{
+    const s=await setup({extraRows:[
+        {name:'3구역 2소',address:'기장군 기장읍 38-0',capacity:30,liveStatus:'unsupported'},
+        {name:'사하구 주소시험',address:'부산 사하구 괴정동 123-4',liveStatus:'unsupported'}
+    ]});
+    const cards=[...s.w.document.querySelectorAll('#parking-list .parking-card')];
+    assert.ok(!cards.some(p=>p.querySelector('h2').textContent==='3구역 2소'));
+    const normal=cards.find(p=>p.querySelector('h2').textContent==='사하구 주소시험');
+    assert.match(decodeURIComponent(normal.querySelector('a.map-link').href),/사하구 괴정동 123-4/);
+    const coordinateCard=cards.find(p=>p.querySelector('h2').textContent==='주차장0');
+    assert.match(coordinateCard.querySelector('a.map-link').href,/link\/map\/.*35,129/);
+    const input=s.w.document.querySelector('#search-input');input.value='사하';input.dispatchEvent(new s.w.Event('input'));
+    assert.equal(s.w.document.querySelectorAll('#parking-list .parking-card').length,1);
+    s.dom.window.close();
 });

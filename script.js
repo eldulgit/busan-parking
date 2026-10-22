@@ -31,10 +31,24 @@ function kakaoSearchUrl(name) {
     const parkingName = placeName.includes("주차장") ? placeName : `${placeName} 공영주차장`;
     return "https://map.kakao.com/link/search/" + encodeURIComponent(`부산 ${parkingName}`);
 }
+function parkingMapLink(p) {
+    const location=ParkingLocation.resolveLocation(p);
+    if (!location.visible) return null;
+    if (location.mode === "coordinates") {
+        const {latitude,longitude}=location.point;
+        return {url:`https://map.kakao.com/link/map/${encodeURIComponent(p.name)},${latitude},${longitude}`,label:"카카오맵에서 좌표 위치 확인 ↗"};
+    }
+    if (location.mode === "address") {
+        const query=/^부산/.test(location.address)?location.address:`부산 ${location.address}`;
+        return {url:"https://map.kakao.com/link/search/"+encodeURIComponent(query),label:"카카오맵에서 주소 검색 ↗"};
+    }
+    return {url:kakaoSearchUrl(p.name),label:"카카오맵에서 주차장 검색 ↗"};
+}
 function card(p) {
     const article = element("article", "", "parking-card");
     const top = element("div", "", "card-top");
     const isLive = p.liveStatus === "available";
+    const map = parkingMapLink(p);
     top.append(element("h2", p.name), element("span", isLive ? "실시간 제공" : p.liveStatus === "unavailable" ? "현황 조회 불가" : "실시간 정보 미제공", `badge ${isLive ? "live" : "muted"}`));
     article.append(top);
     if (Number.isFinite(p.distanceKm)) article.append(element("p", `현재 위치에서 약 ${ParkingLocation.format(p.distanceKm)} · 직선거리`, "distance-badge"));
@@ -77,13 +91,13 @@ function card(p) {
     }
     article.append(details);
     const footer = element("div", "", "card-footer");
-    footer.append(element("p", "주소는 공공데이터 기준이며 실제 위치와 다를 수 있습니다. 지도에서 위치를 확인하세요.", "address-note"));
-    if (p.name && p.name !== "이름 없음") {
-        const mapLink = element("a", "카카오맵에서 위치 확인 ↗", "map-link");
-        mapLink.href = kakaoSearchUrl(p.name);
+    footer.append(element("p", "주소와 좌표는 공공데이터 기준이며 실제 위치와 다를 수 있습니다.", "address-note"));
+    if (map) {
+        const mapLink = element("a", map.label, "map-link");
+        mapLink.href = map.url;
         mapLink.target = "_blank";
         mapLink.rel = "noopener noreferrer";
-        mapLink.setAttribute("aria-label", `${p.name} 카카오맵에서 위치 확인 (새 창)`);
+        mapLink.setAttribute("aria-label", `${p.name} ${map.label.replace(" ↗","")} (새 창)`);
         footer.append(mapLink);
     }
     article.append(footer);
@@ -119,7 +133,7 @@ async function load() {
         const response = await fetch("/api/parking", { cache: "no-store", signal: AbortSignal.timeout(60000) });
         const data = await response.json();
         if (!response.ok || !Array.isArray(data.parkingList)) throw new Error(data.message || "조회에 실패했습니다.");
-        parkingList = data.parkingList; shown = 30; loading = false; render();
+        parkingList = data.parkingList.filter(p => ParkingLocation.resolveLocation(p).visible); shown = 30; loading = false; render();
         warningElement.textContent = (data.warnings || []).join(" ");
     } catch (error) {
         loading = false;
@@ -144,7 +158,7 @@ const voiceStatus = document.querySelector("#voice-status");
 let aiBusy = false, recognition = null, listening = false;
 function renderAiResult(explanation, rows = []) {
     document.querySelector("#ai-explanation").textContent = explanation;
-    document.querySelector("#ai-parking-list").replaceChildren(...rows.map(card));
+    document.querySelector("#ai-parking-list").replaceChildren(...rows.filter(p => ParkingLocation.resolveLocation(p).visible).map(card));
 }
 function leaveLocation() { locationRequest++; currentLocation=null; locationMessage.textContent=""; }
 defaultSort.addEventListener("click",()=>{currentSort="default";render();});

@@ -1,3 +1,4 @@
+import "../../location.js";
 const ENDPOINTS = {
     basic: "https://apis.data.go.kr/6260000/BusanPblcPrkngInfoService/getPblcPrkngInfo",
     list: "https://apis.data.go.kr/B552587/ParkingInfoService_v2/getParkingList_v2",
@@ -185,6 +186,17 @@ export function mergeParking(basic, list, live, liveFailed = false) {
         return priority(a) - priority(b) || a.name.localeCompare(b.name, "ko");
     });
 }
+// 일반·AI·GPS가 같은 목록을 사용하도록 API 응답 생성 시 제외합니다.
+// 외부 원본은 변경하지 않으며 진단에 제외 사유를 남깁니다.
+export function filterLocatable(rows) {
+    const parkingList=[],excluded=[];
+    for (const p of rows) {
+        const location=globalThis.ParkingLocation.resolveLocation(p);
+        if (location.visible) parkingList.push({...p,locationMode:location.mode});
+        else excluded.push({id:p.id,name:p.name,reason:location.reason});
+    }
+    return {parkingList,excluded};
+}
 export async function onRequestGet(context) {
     const headers = { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" };
     let key = (context.env.SERVICE_KEY || context.env.DATA_API_KEY)?.trim();
@@ -207,7 +219,9 @@ export async function onRequestGet(context) {
     if (results[0].status === "rejected") warnings.push(`전체 기본 목록 조회에 실패했습니다. 현재 일부 주차장만 표시합니다. ${failureMessage(safeFailure(results[0].reason))}`);
     if (results[1].status === "rejected") warnings.push(`실시간 제공 주차장 목록 조회에 실패했습니다. ${failureMessage(safeFailure(results[1].reason))}`);
     if (results[2].status === "rejected") warnings.push(`실시간 현황 조회에 실패했습니다. 기본 정보는 확인할 수 있습니다. ${failureMessage(safeFailure(results[2].reason))}`);
-    const parkingList = mergeParking(...values, results[2].status === "rejected");
+    const mergedParkingList = mergeParking(...values, results[2].status === "rejected");
+    const {parkingList,excluded} = filterLocatable(mergedParkingList);
+    const locationDiagnostics = { sourceCount:mergedParkingList.length, visibleCount:parkingList.length, excludedCount:excluded.length, excluded };
     for (const p of parkingList) p.addressStatus = p.address ? "available" : results[0].status === "rejected" ? "source-failed" : p.realtimeSupported && p.detailsStatus === "unmatched" ? "unmatched" : "missing";
     const unmatched = parkingList.filter(p => p.addressStatus === "unmatched").length;
     const sourceMissing = parkingList.filter(p => p.realtimeSupported && p.addressStatus === "missing").length;
@@ -220,5 +234,5 @@ export async function onRequestGet(context) {
         facilityProvided: parkingList.filter(p => p.live?.valid && p.live.source === "bisco").length,
         basicUsed: parkingList.filter(p => p.live?.valid && p.live.source === "busan-basic").length
     };
-    return send({ parkingList, totalCount: parkingList.length, warnings, sourceStatus, addressDiagnostics, liveDiagnostics, fetchedAt: new Date().toISOString() });
+    return send({ parkingList, totalCount: parkingList.length, warnings, sourceStatus, addressDiagnostics, liveDiagnostics, locationDiagnostics, fetchedAt: new Date().toISOString() });
 }
