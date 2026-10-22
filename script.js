@@ -116,3 +116,13 @@ document.querySelector("#reset-button").addEventListener("click", () => { input.
 more.addEventListener("click", () => { shown += 30; render(); });
 reload.addEventListener("click", load);
 load();
+
+// V6.3 이후 MCP 조회 결과에도 기존 카드 렌더러를 그대로 재사용합니다.
+function renderAiResult(explanation, parkingList = []) {
+    document.querySelector("#ai-explanation").textContent = explanation;
+    document.querySelector("#ai-parking-list").replaceChildren(...parkingList.map(card));
+}
+document.querySelector("#ai-form").addEventListener("submit", event => {
+    event.preventDefault();
+    renderAiResult("AI 요청 기능은 추후 제공됩니다. 위 검색창을 이용해 주세요.");
+});

@@ -178,3 +178,68 @@ SERVICE_KEY 설정은 기존 Cloudflare Secret을 그대로 사용합니다.
 이전 변경의 상단 주소 안내 제거도 전체 ZIP에 포함됩니다.
 검증: CSS 괄호 균형, 모바일 미디어 쿼리 및 기존 숨김 규칙 유지 확인. 실제 브라우저 화면·기기에서의 시각 검증은 수행하지 않았습니다.
 커밋 메시지: style: 민트와 크림색의 둥근 카드 디자인 적용
+
+## V6.0〜V6.2 워드 문서 반영
+
+2026-10-22 첨부된 V6.1, V6.2 및 MCP 이해 정리를 기준으로 구현했습니다.
+기존 일반 검색·민트 디자인·카카오맵·PWA·공공데이터 통합 API는 유지합니다.
+AI 입력/설명/카드 영역을 추가했으며, Gemini 미연결 상태이므로 입력과 실행 버튼은 준비 중으로 표시합니다.
+자연어를 키워드 규칙으로 흉내 내거나 AI가 연결되었다고 표시하지 않습니다.
+`renderAiResult(explanation, parkingList)`는 기존 `card()`를 재사용합니다.
+
+### MCP 실행
+
+Node.js 22 이상과 npm이 필요합니다. 프로젝트 최상위에서:
+
+```bash
+cd mcp
+npm ci
+npm run typecheck
+npm test
+npm run inspect
+```
+
+Inspector는 터미널에 표시된 토큰이 포함된 URL로 접속합니다.
+자동 연결되지 않으면 STDIO, Command `node`, Arguments `--import tsx src/index.ts`를 사용합니다.
+작업 디렉터리는 `mcp`여야 합니다. 서버만 실행하려면 `npm start`를 사용합니다.
+
+기본 조회 주소는 `https://new-busan-parking.pages.dev/api/parking`입니다.
+변경하려면 `mcp/.env.example`을 `mcp/.env`로 복사하고 PARKING_API_URL을 설정합니다.
+환경변수는 기존 값이 우선하며 .env는 실행 위치와 무관하게 mcp 폴더에서 읽습니다.
+SERVICE_KEY는 계속 Cloudflare Secret에만 보관합니다. MCP에는 공공데이터 인증키가 필요하지 않습니다.
+
+| Tool | 입력 | 동작 |
+| --- | --- | --- |
+| search_parking | keyword: 화명역 | 이름 앞부분 일치 우선, 이후 부분 일치 |
+| find_available_parking | keyword: 화명, limit: 5 | 빈자리 내림차순, 실시간 없는 항목은 마지막 |
+| get_parking_detail | name: 화명역 | 정확한 이름 우선, 여러 후보는 ambiguous로 반환 |
+
+limit은 1~100 정수이며 기본값은 5입니다. 이름의 방향·구역 숫자는 제거하지 않습니다.
+기존 ZIP API의 `parkingList`와 문서 운영 API의 `items`/`parknm`/`curravacnt` 형식을 모두 지원합니다.
+운영 API 항목은 기존 카드 형식으로 변환하며 요금·운영시간·주소·관리기관·갱신시간을 보존합니다.
+빈자리 미제공 값은 null로 반환하고 실제 0대와 구분합니다. 누락 정보는 추측하지 않습니다.
+API 경고는 결과의 warnings에 포함하며 HTTP/연결/잘못된 응답은 MCP isError로 반환합니다.
+
+### 파일과 배포
+
+`mcp/src/parkingApi.ts`는 통합 API 호출·형식 변환을 담당하고, `mcp/src/tools/`는 업무 함수를,
+`mcp/src/index.ts`는 Tool 설명·입력 검증·MCP 등록을 담당합니다.
+업무 함수는 MCP에 종속되지 않아 향후 AI 연결에서도 재사용할 수 있습니다.
+
+package.json과 package-lock.json은 함께 커밋합니다. node_modules와 실제 .env는 제외합니다.
+MCP 서버는 로컬 STDIO 프로그램입니다. Cloudflare Pages에 파일을 올리는 것만으로 MCP 서버가 실행되거나 웹 AI 요청이 연결되지는 않습니다.
+웹 배포 설정에서 빌드 명령을 추가할 필요는 없습니다. 기존 Pages Functions 설정을 유지합니다.
+PWA 캐시 버전은 v6-2로 변경했습니다.
+
+### 이번 검증
+
+- TypeScript 검사와 실제 MCP STDIO 클라이언트 테스트 통과
+- Tool 목록 3개, 검색어 정규화·접두어 우선, 빈자리 정렬·0/미제공 구분, limit 검증
+- 정확한 이름 우선·중복 후보·검색 결과 없음, API 오류/잘못된 응답, 경고 전달 확인
+- 실제 운영 API에 세 업무 함수를 연결해 화명역 조회 성공 확인
+- 문서의 과거 빈자리 5대를 고정하지 않고 API의 현재 값을 사용
+- 실제 Cloudflare 배포, Inspector GUI 수동 조작, 브라우저 시각 검증은 수행하지 않음
+
+Gemini API와 자연어 Tool 자동 선택은 문서의 V6.3~V6.4 후속 범위입니다.
+권장 커밋 메시지: `feat: V6.2 MCP 주차장 Tool 3종 및 AI 입력 영역 추가`
+SDK 참고: https://ts.sdk.modelcontextprotocol.io/server

@@ -71,3 +71,12 @@ dt{color:#7e8a73}dd{color:#4f6656}
  .availability{font-size:20px;padding:15px}.search-tip{font-size:11px}.refresh{padding:7px 10px;font-size:11px}
  dl{padding:13px;grid-template-columns:85px 1fr}.install-panel{padding:16px;border-radius:18px}
 }
+
+/* V6.0: 기존 검색과 독립된 AI 입력·결과 영역 */
+.ai-panel h2 { margin-top: 0; }
+.ai-panel p { line-height: 1.6; }
+#ai-form { display: grid; gap: 12px; }
+#ai-input { width: 100%; box-sizing: border-box; padding: 14px; border: 1px solid #b9d6ce; border-radius: 14px; font: inherit; resize: vertical; background: #f7faf8; color: #526761; }
+#ai-form button:disabled { opacity: .65; cursor: not-allowed; }
+#ai-result { margin-top: 16px; }
+#ai-parking-list:empty { display: none; }
